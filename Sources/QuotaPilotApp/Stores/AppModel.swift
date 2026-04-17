@@ -119,6 +119,7 @@ final class AppModel {
         TrackedProfileInventoryBuilder.makeItems(
             discoveredProfiles: self.discoveredProfiles,
             liveAccounts: self.accounts,
+            failures: self.lastAmbientRefreshFailures,
             currentProfileRootPaths: self.resolvedCurrentProfilePaths
         )
     }

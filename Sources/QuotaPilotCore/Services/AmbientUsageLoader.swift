@@ -12,17 +12,20 @@ public enum AmbientUsageFailureKind: Equatable, Sendable {
 public struct AmbientUsageRefreshFailure: Equatable, Sendable {
     public let provider: QuotaProvider
     public let profileLabel: String
+    public let profileRootPath: String?
     public let detail: String
     public let kind: AmbientUsageFailureKind
 
     public init(
         provider: QuotaProvider,
         profileLabel: String,
+        profileRootPath: String? = nil,
         detail: String,
         kind: AmbientUsageFailureKind
     ) {
         self.provider = provider
         self.profileLabel = profileLabel
+        self.profileRootPath = profileRootPath
         self.detail = detail
         self.kind = kind
     }
@@ -215,6 +218,10 @@ public struct AmbientUsageLoader: Sendable {
             isCurrent: isCurrent,
             profileRootPath: profile.profileRootURL.standardizedFileURL.path,
             sourceDescription: profile.sourceDescription,
+            email: profile.email,
+            plan: profile.plan,
+            capabilities: .localProfile,
+            lastSuccessfulRefreshAt: .now,
             windows: windows
         )
     }
@@ -241,6 +248,10 @@ public struct AmbientUsageLoader: Sendable {
             isCurrent: isCurrent,
             profileRootPath: profile.profileRootURL.standardizedFileURL.path,
             sourceDescription: profile.sourceDescription,
+            email: profile.email,
+            plan: profile.plan,
+            capabilities: .localProfile,
+            lastSuccessfulRefreshAt: .now,
             windows: windows
         )
     }
@@ -345,6 +356,7 @@ public struct AmbientUsageLoader: Sendable {
                 return AmbientUsageRefreshFailure(
                     provider: profile.provider,
                     profileLabel: profile.label,
+                    profileRootPath: profile.profileRootURL.standardizedFileURL.path,
                     detail: loaderError.localizedDescription,
                     kind: .invalidCredentials
                 )
@@ -352,6 +364,7 @@ public struct AmbientUsageLoader: Sendable {
                 return AmbientUsageRefreshFailure(
                     provider: profile.provider,
                     profileLabel: profile.label,
+                    profileRootPath: profile.profileRootURL.standardizedFileURL.path,
                     detail: loaderError.localizedDescription,
                     kind: .requestFailed(statusCode: statusCode)
                 )
@@ -361,6 +374,7 @@ public struct AmbientUsageLoader: Sendable {
         return AmbientUsageRefreshFailure(
             provider: profile.provider,
             profileLabel: profile.label,
+            profileRootPath: profile.profileRootURL.standardizedFileURL.path,
             detail: "\(profile.label): \(error.localizedDescription)",
             kind: .unexpected
         )

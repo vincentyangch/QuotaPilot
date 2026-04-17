@@ -39,22 +39,30 @@ struct TrackedProfileInventorySectionView: View {
                                 }
                             }
 
-                            if let email = item.email {
-                                Text(email)
+                            if let identitySummary = item.identitySummary {
+                                Text(identitySummary)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
 
-                            HStack(spacing: 8) {
-                                if let plan = item.plan {
-                                    Text(plan.uppercased())
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                }
+                            Text(item.statusSummary)
+                                .font(.caption)
+                                .foregroundStyle(item.hasLiveUsage ? Color.secondary : Color.orange)
 
-                                Text(item.statusSummary)
-                                    .font(.caption)
-                                    .foregroundStyle(item.hasLiveUsage ? Color.secondary : Color.orange)
+                            Text(item.capabilitySummary)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
+                            if let lastRefreshSummary = item.lastRefreshSummary {
+                                Text(lastRefreshSummary)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let lastErrorDetail = item.lastErrorDetail {
+                                Text(lastErrorDetail)
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
                             }
 
                             Text(item.profileRootPath)

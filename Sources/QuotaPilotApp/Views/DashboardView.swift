@@ -105,6 +105,18 @@ struct DashboardView: View {
                                     .foregroundStyle(.secondary)
                             }
 
+                            if let identitySummary = selectedAccount.identitySummary {
+                                Text(identitySummary)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if !selectedAccount.capabilityLabels.isEmpty {
+                                Text(selectedAccount.capabilityLabels.joined(separator: " • "))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
                             HStack(spacing: 14) {
                                 ForEach(selectedAccount.windows) { window in
                                     VStack(alignment: .leading, spacing: 4) {

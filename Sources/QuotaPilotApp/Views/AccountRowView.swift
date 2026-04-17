@@ -28,9 +28,17 @@ struct AccountRowView: View {
                     }
                 }
 
-                Text("\(self.account.primaryRemainingPercent)% remaining")
+                if let identitySummary = self.account.identitySummary {
+                    Text(identitySummary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Text(self.statusLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             Spacer()
@@ -53,5 +61,13 @@ struct AccountRowView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var statusLine: String {
+        let capabilitySummary = self.account.capabilityLabels.joined(separator: " • ")
+        guard !capabilitySummary.isEmpty else {
+            return "\(self.account.primaryRemainingPercent)% remaining"
+        }
+        return "\(self.account.primaryRemainingPercent)% remaining • \(capabilitySummary)"
     }
 }
