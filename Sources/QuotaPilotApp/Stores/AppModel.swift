@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 import QuotaPilotCore
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 @MainActor
 @Observable
@@ -12,6 +15,7 @@ final class AppModel {
     private let currentProfileSelectionStore: CurrentProfileSelectionStoring
     private let profileSourceStore: StoredProfileSourceStoring
     private let rulesStorage: GlobalRulesStorage
+    private let widgetSnapshotStore: QuotaPilotWidgetSnapshotStore
     private var didAttemptInitialRefresh = false
     private let homeURL: URL
 
@@ -37,6 +41,7 @@ final class AppModel {
         currentProfileSelectionStore: CurrentProfileSelectionStoring = FileCurrentProfileSelectionStore(),
         profileSourceStore: StoredProfileSourceStoring = FileStoredProfileSourceStore(),
         rulesStorage: GlobalRulesStorage = GlobalRulesStorage(),
+        widgetSnapshotStore: QuotaPilotWidgetSnapshotStore = QuotaPilotWidgetSnapshotStore(),
         homeURL: URL = FileManager.default.homeDirectoryForCurrentUser,
         rules: GlobalRules? = nil
     ) {
@@ -46,6 +51,7 @@ final class AppModel {
         self.currentProfileSelectionStore = currentProfileSelectionStore
         self.profileSourceStore = profileSourceStore
         self.rulesStorage = rulesStorage
+        self.widgetSnapshotStore = widgetSnapshotStore
         self.homeURL = homeURL
         let storedSources = (try? profileSourceStore.loadSources()) ?? []
         let currentSelections = (try? currentProfileSelectionStore.loadSelections()) ?? [:]
@@ -63,6 +69,7 @@ final class AppModel {
         self.lastUsageRefreshSummary = discoveredProfiles.isEmpty
             ? "No local profiles found. Showing demo data."
             : "Ambient profiles found. Refresh to load live usage."
+        self.persistWidgetSnapshot()
     }
 
     var providerRecommendations: [RecommendationEngine.ProviderRecommendation] {
@@ -97,6 +104,7 @@ final class AppModel {
     func reloadDemoData() {
         self.accounts = DemoAccountRepository.makeAccounts()
         self.lastUsageRefreshSummary = "Reloaded demo data."
+        self.persistWidgetSnapshot()
     }
 
     func refreshDiscoveredProfiles() {
@@ -142,30 +150,38 @@ final class AppModel {
         } else {
             self.lastUsageRefreshSummary = "Loaded \(result.accounts.count) live profile(s); \(result.failures.count) refresh failed."
         }
+
+        self.persistWidgetSnapshot()
     }
 
     func updateSwitchThreshold(_ value: Int) {
         self.rules = self.rules.updating(switchThresholdPercent: value)
+        self.persistWidgetSnapshot()
     }
 
     func updateMinimumScoreAdvantage(_ value: Int) {
         self.rules = self.rules.updating(minimumScoreAdvantage: value)
+        self.persistWidgetSnapshot()
     }
 
     func updateRemainingWeight(_ value: Int) {
         self.rules = self.rules.updating(remainingWeight: value)
+        self.persistWidgetSnapshot()
     }
 
     func updateResetWeight(_ value: Int) {
         self.rules = self.rules.updating(resetWeight: value)
+        self.persistWidgetSnapshot()
     }
 
     func updatePriorityWeight(_ value: Int) {
         self.rules = self.rules.updating(priorityWeight: value)
+        self.persistWidgetSnapshot()
     }
 
     func resetRules() {
         self.rules = .default
+        self.persistWidgetSnapshot()
     }
 
     func addStoredProfileSource(
@@ -284,5 +300,18 @@ final class AppModel {
             discoveredProfiles: self.discoveredProfiles,
             preferredSelections: self.currentProfileSelections
         )
+    }
+
+    private func persistWidgetSnapshot() {
+        let snapshot = QuotaPilotWidgetSnapshot(
+            generatedAt: .now,
+            accounts: self.accounts,
+            rules: self.rules,
+            lastUsageRefreshSummary: self.lastUsageRefreshSummary
+        )
+        try? self.widgetSnapshotStore.save(snapshot)
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
     }
 }

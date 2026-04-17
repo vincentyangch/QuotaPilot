@@ -29,6 +29,8 @@ struct QuotaPilotEntry: TimelineEntry {
 }
 
 struct QuotaPilotProvider: TimelineProvider {
+    private let snapshotStore = QuotaPilotWidgetSnapshotStore()
+
     func placeholder(in context: Context) -> QuotaPilotEntry {
         let accounts = DemoAccountRepository.makeAccounts()
         let recommendations = RecommendationEngine().recommendationsByProvider(accounts: accounts, rules: .default)
@@ -40,12 +42,31 @@ struct QuotaPilotProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (QuotaPilotEntry) -> Void) {
-        completion(self.placeholder(in: context))
+        completion(self.loadEntry() ?? self.placeholder(in: context))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<QuotaPilotEntry>) -> Void) {
-        let entry = self.placeholder(in: context)
+        let entry = self.loadEntry() ?? self.placeholder(in: context)
         completion(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(900))))
+    }
+
+    private func loadEntry() -> QuotaPilotEntry? {
+        guard let snapshot = try? self.snapshotStore.load() else {
+            return nil
+        }
+
+        let recommendations = RecommendationEngine().recommendationsByProvider(
+            accounts: snapshot.accounts,
+            rules: snapshot.rules,
+            now: snapshot.generatedAt
+        )
+
+        guard !recommendations.isEmpty else { return nil }
+
+        return QuotaPilotEntry(
+            date: snapshot.generatedAt,
+            providerRecommendations: recommendations
+        )
     }
 }
 
