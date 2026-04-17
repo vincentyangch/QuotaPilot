@@ -75,6 +75,18 @@ struct TrackedProfileInventorySectionView: View {
                                     .foregroundStyle(self.lifecycleForeground(for: item.lifecycleState))
                             }
 
+                            if let refreshIssueSummary = item.refreshIssueSummary {
+                                Text(refreshIssueSummary)
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+
+                            if let lastErrorDetail = item.lastErrorDetail {
+                                Text(lastErrorDetail)
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+
                             Text(item.lifecycleNextAction)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)

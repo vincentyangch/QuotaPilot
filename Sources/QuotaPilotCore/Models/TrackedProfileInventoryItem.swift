@@ -46,27 +46,40 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
         "QuotaPilot will permanently delete \(self.label) from its managed backup storage."
     }
 
+    public var refreshIssueSummary: String? {
+        guard self.lastErrorDetail != nil else { return nil }
+        return "Latest refresh failed. QuotaPilot is showing the previous snapshot for this profile."
+    }
+
     public var recoveryActionKind: TrackedProfileRecoveryActionKind? {
+        if self.lastErrorDetail != nil {
+            return .refreshUsage
+        }
+
         switch self.lifecycleState {
         case .ready:
-            nil
+            return nil
         case .awaitingRefresh, .authExpired, .sessionUnavailable, .usageReadFailed:
-            .refreshUsage
+            return .refreshUsage
         case .credentialsMissing:
-            .openSettings
+            return .openSettings
         }
     }
 
     public var recoveryActionTitle: String? {
+        if self.lastErrorDetail != nil {
+            return "Retry Refresh"
+        }
+
         switch self.lifecycleState {
         case .awaitingRefresh:
-            "Refresh Usage"
+            return "Refresh Usage"
         case .authExpired, .sessionUnavailable, .usageReadFailed:
-            "Retry Refresh"
+            return "Retry Refresh"
         case .credentialsMissing:
-            "Open Settings"
+            return "Open Settings"
         case .ready:
-            nil
+            return nil
         }
     }
 }

@@ -141,6 +141,36 @@ final class ProfileActionLabelTests: XCTestCase {
         XCTAssertNil(ready.recoveryActionTitle)
     }
 
+    func testTrackedProfileWithStaleRefreshIssuePrefersRetryRefresh() {
+        let item = TrackedProfileInventoryItem(
+            provider: .codex,
+            label: "Codex Work",
+            email: nil,
+            plan: nil,
+            identitySummary: nil,
+            profileRootPath: "/tmp/codex-work",
+            sourceDescription: "Stored profile source",
+            sourceKind: .stored,
+            ownershipMode: .externalLocal,
+            sourceSummary: "Stored • External",
+            isCurrentSelection: true,
+            hasLiveUsage: true,
+            liveRemainingPercent: 62,
+            lifecycleState: .ready,
+            lifecycleTitle: "Ready",
+            lifecycleDetail: "Live usage is available for this profile.",
+            lifecycleNextAction: "QuotaPilot will keep refreshing this profile automatically.",
+            capabilitySummary: "Usage, Recommend, Auto-Switch, Desktop Handoff",
+            lastRefreshSummary: "Updated 5 min ago",
+            lastErrorDetail: "Codex usage request failed with HTTP 401.",
+            statusSummary: "62% remaining"
+        )
+
+        XCTAssertEqual(item.refreshIssueSummary, "Latest refresh failed. QuotaPilot is showing the previous snapshot for this profile.")
+        XCTAssertEqual(item.recoveryActionKind, .refreshUsage)
+        XCTAssertEqual(item.recoveryActionTitle, "Retry Refresh")
+    }
+
     private func makeTrackedItem(lifecycleState: TrackedProfileLifecycleState) -> TrackedProfileInventoryItem {
         TrackedProfileInventoryItem(
             provider: .codex,
