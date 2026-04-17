@@ -8,15 +8,22 @@ struct StatusMenuView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ForEach(self.model.providerRecommendations) { recommendation in
-                RecommendationCard(
-                    recommendation: recommendation,
-                    activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
-                    guidedHandoffPlan: self.model.guidedDesktopHandoffPlan(for: recommendation.provider),
-                    isActivatingProfile: self.model.isActivatingProfile
-                ) {
-                    Task {
-                        await self.model.activateRecommendedProfile(for: recommendation.provider)
+            if self.model.providerRecommendations.isEmpty {
+                LiveAccountsEmptyStateView(
+                    title: self.model.liveAccountsEmptyStateTitle,
+                    detail: self.model.liveAccountsEmptyStateDetail
+                )
+            } else {
+                ForEach(self.model.providerRecommendations) { recommendation in
+                    RecommendationCard(
+                        recommendation: recommendation,
+                        activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
+                        guidedHandoffPlan: self.model.guidedDesktopHandoffPlan(for: recommendation.provider),
+                        isActivatingProfile: self.model.isActivatingProfile
+                    ) {
+                        Task {
+                            await self.model.activateRecommendedProfile(for: recommendation.provider)
+                        }
                     }
                 }
             }
@@ -66,19 +73,25 @@ struct StatusMenuView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
 
-                ForEach(self.model.providerRecommendations) { recommendation in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(recommendation.provider.displayName)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
+                if self.model.providerRecommendations.isEmpty {
+                    Text("No live accounts are loaded yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(self.model.providerRecommendations) { recommendation in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(recommendation.provider.displayName)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
 
-                        ForEach(recommendation.rankedAccounts) { scoredAccount in
-                            AccountRowView(
-                                account: scoredAccount.account,
-                                score: scoredAccount.score,
-                                isRecommended: scoredAccount.account.id == recommendation.recommendedAccount?.id,
-                                showsScore: false
-                            )
+                            ForEach(recommendation.rankedAccounts) { scoredAccount in
+                                AccountRowView(
+                                    account: scoredAccount.account,
+                                    score: scoredAccount.score,
+                                    isRecommended: scoredAccount.account.id == recommendation.recommendedAccount?.id,
+                                    showsScore: false
+                                )
+                            }
                         }
                     }
                 }
@@ -100,8 +113,8 @@ struct StatusMenuView: View {
                     self.openWindow(id: "dashboard")
                 }
 
-                Button("Reload Demo Data") {
-                    self.model.reloadDemoData()
+                SettingsLink {
+                    Text("Settings")
                 }
             }
 

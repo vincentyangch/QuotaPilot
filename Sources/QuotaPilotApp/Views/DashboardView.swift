@@ -1,6 +1,29 @@
 import SwiftUI
 import QuotaPilotCore
 
+struct LiveAccountsEmptyStateView: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(self.title)
+                .font(.headline)
+
+            Text(self.detail)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            SettingsLink {
+                Text("Open Settings")
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
 struct DashboardView: View {
     let model: AppModel
 
@@ -14,16 +37,23 @@ struct DashboardView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: self.$selection) {
-                ForEach(self.model.providerRecommendations) { recommendation in
-                    Section(recommendation.provider.displayName) {
-                        ForEach(recommendation.rankedAccounts) { scoredAccount in
-                            AccountRowView(
-                                account: scoredAccount.account,
-                                score: scoredAccount.score,
-                                isRecommended: scoredAccount.account.id == recommendation.recommendedAccount?.id,
-                                showsScore: true
-                            )
-                            .tag(scoredAccount.account.id)
+                if self.model.providerRecommendations.isEmpty {
+                    Section("Status") {
+                        Text(self.model.liveAccountsEmptyStateDetail)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    ForEach(self.model.providerRecommendations) { recommendation in
+                        Section(recommendation.provider.displayName) {
+                            ForEach(recommendation.rankedAccounts) { scoredAccount in
+                                AccountRowView(
+                                    account: scoredAccount.account,
+                                    score: scoredAccount.score,
+                                    isRecommended: scoredAccount.account.id == recommendation.recommendedAccount?.id,
+                                    showsScore: true
+                                )
+                                .tag(scoredAccount.account.id)
+                            }
                         }
                     }
                 }
@@ -37,18 +67,27 @@ struct DashboardView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    if !self.model.hasLiveAccounts {
+                        LiveAccountsEmptyStateView(
+                            title: self.model.liveAccountsEmptyStateTitle,
+                            detail: self.model.liveAccountsEmptyStateDetail
+                        )
+                    }
+
                     ProviderHealthSectionView(summaries: self.model.providerHealthSummaries)
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        ForEach(self.model.providerRecommendations) { recommendation in
-                            RecommendationCard(
-                                recommendation: recommendation,
-                                activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
-                                guidedHandoffPlan: self.model.guidedDesktopHandoffPlan(for: recommendation.provider),
-                                isActivatingProfile: self.model.isActivatingProfile
-                            ) {
-                                Task {
-                                    await self.model.activateRecommendedProfile(for: recommendation.provider)
+                    if !self.model.providerRecommendations.isEmpty {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                            ForEach(self.model.providerRecommendations) { recommendation in
+                                RecommendationCard(
+                                    recommendation: recommendation,
+                                    activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
+                                    guidedHandoffPlan: self.model.guidedDesktopHandoffPlan(for: recommendation.provider),
+                                    isActivatingProfile: self.model.isActivatingProfile
+                                ) {
+                                    Task {
+                                        await self.model.activateRecommendedProfile(for: recommendation.provider)
+                                    }
                                 }
                             }
                         }

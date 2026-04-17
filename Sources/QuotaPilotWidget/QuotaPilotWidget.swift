@@ -63,8 +63,6 @@ struct QuotaPilotProvider: TimelineProvider {
 
         let projection = QuotaPilotWidgetProjection.make(snapshot: snapshot)
 
-        guard !projection.providerPanels.isEmpty else { return nil }
-
         return QuotaPilotEntry(
             date: snapshot.generatedAt,
             projection: projection
@@ -82,38 +80,50 @@ struct QuotaPilotWidgetView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            ForEach(self.entry.projection.providerPanels.prefix(self.family == .systemSmall ? 1 : 2), id: \.provider) { panel in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        WidgetProviderIconView(provider: panel.provider)
-                        Text(panel.provider.displayName)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-
-                        Spacer()
-
-                        if panel.showsWarning {
-                            Text("Low")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.orange)
-                        }
-                    }
-
-                    Text("Current: \(panel.currentLabel)")
-                        .font(.caption)
-                        .lineLimit(1)
-
-                    Text("Best: \(panel.recommendedLabel)")
+            if self.entry.projection.providerPanels.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No live profiles yet")
                         .font(.headline)
-                        .lineLimit(1)
 
-                    Text("\(panel.currentRemainingPercent)% now • \(panel.recommendedRemainingPercent)% best")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tint)
-
-                    Text(panel.statusText)
-                        .font(.caption2)
+                    Text(self.entry.projection.emptyStateText ?? "Add a Codex or Claude profile in QuotaPilot Settings.")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                ForEach(self.entry.projection.providerPanels.prefix(self.family == .systemSmall ? 1 : 2), id: \.provider) { panel in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            WidgetProviderIconView(provider: panel.provider)
+                            Text(panel.provider.displayName)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            if panel.showsWarning {
+                                Text("Low")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+
+                        Text("Current: \(panel.currentLabel)")
+                            .font(.caption)
+                            .lineLimit(1)
+
+                        Text("Best: \(panel.recommendedLabel)")
+                            .font(.headline)
+                            .lineLimit(1)
+
+                        Text("\(panel.currentRemainingPercent)% now • \(panel.recommendedRemainingPercent)% best")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tint)
+
+                        Text(panel.statusText)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 

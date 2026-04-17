@@ -51,7 +51,7 @@ final class AppModel {
 
     init(
         activityLogStore: ActivityLogStore = ActivityLogStore(),
-        accounts: [QuotaAccount] = DemoAccountRepository.makeAccounts(),
+        accounts: [QuotaAccount] = [],
         ambientUsageLoader: AmbientUsageLoader = AmbientUsageLoader(),
         backgroundRefreshSettingsStorage: BackgroundRefreshSettingsStorage = BackgroundRefreshSettingsStorage(),
         profileActivator: LocalProfileActivator = LocalProfileActivator(),
@@ -106,7 +106,7 @@ final class AppModel {
         self.storedProfileSources = storedSources
         self.rules = rules ?? rulesStorage.load()
         self.lastUsageRefreshSummary = discoveredProfiles.isEmpty
-            ? "No local profiles found. Showing demo data."
+            ? "No local profiles found yet. Add a Codex or Claude profile in Settings."
             : "Ambient profiles found. Refresh to load live usage."
         self.persistWidgetSnapshot()
     }
@@ -153,21 +153,23 @@ final class AppModel {
         Set(self.providerRecommendations.compactMap(\.recommendedAccount?.id))
     }
 
-    func recommendation(for provider: QuotaProvider) -> RecommendationEngine.ProviderRecommendation? {
-        self.providerRecommendations.first(where: { $0.provider == provider })
+    var hasLiveAccounts: Bool {
+        !self.accounts.isEmpty
     }
 
-    func reloadDemoData() {
-        self.accounts = DemoAccountRepository.makeAccounts()
-        self.lastAmbientRefreshFailures = []
-        self.lastUsageRefreshSummary = "Reloaded demo data."
-        self.persistWidgetSnapshot()
-        self.recordActivity(
-            kind: .refreshSucceeded,
-            provider: nil,
-            title: "Reloaded demo data",
-            detail: "QuotaPilot is showing demo data again."
-        )
+    var liveAccountsEmptyStateTitle: String {
+        self.discoveredProfiles.isEmpty ? "No Local Profiles Yet" : "No Live Usage Loaded Yet"
+    }
+
+    var liveAccountsEmptyStateDetail: String {
+        if self.discoveredProfiles.isEmpty {
+            return "Add a Codex or Claude profile in Settings to start tracking real usage."
+        }
+        return "QuotaPilot found local profiles, but it has not loaded live usage yet. Refresh usage or review provider health below."
+    }
+
+    func recommendation(for provider: QuotaProvider) -> RecommendationEngine.ProviderRecommendation? {
+        self.providerRecommendations.first(where: { $0.provider == provider })
     }
 
     func refreshDiscoveredProfiles() {
@@ -223,14 +225,12 @@ final class AppModel {
         }
 
         guard !self.discoveredProfiles.isEmpty else {
+            self.accounts = []
             self.lastAmbientRefreshFailures = []
-            self.lastUsageRefreshSummary = "No local profiles found. Showing demo data."
-            self.recordActivity(
-                kind: .refreshFailed,
-                provider: nil,
-                title: "Refresh skipped",
-                detail: self.lastUsageRefreshSummary
-            )
+            self.pendingSwitchConfirmations = [:]
+            self.automaticActivationRecoveryIssues = [:]
+            self.lastUsageRefreshSummary = "No local profiles found yet. Add a Codex or Claude profile in Settings."
+            self.persistWidgetSnapshot()
             return nil
         }
 

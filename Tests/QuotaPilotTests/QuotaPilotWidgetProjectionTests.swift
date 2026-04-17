@@ -94,4 +94,23 @@ final class QuotaPilotWidgetProjectionTests: XCTestCase {
         XCTAssertEqual(panel.statusText, "Current stays best")
         XCTAssertEqual(projection.lastRefreshText, "Updated 1 min ago")
     }
+
+    func testCarriesEmptyStateTextWhenNoAccountsArePresent() {
+        let now = Date(timeIntervalSince1970: 5_000)
+        let snapshot = QuotaPilotWidgetSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 4_940),
+            accounts: [],
+            rules: .default,
+            lastUsageRefreshSummary: "No local profiles found yet. Add a Codex or Claude profile in Settings."
+        )
+
+        let projection = QuotaPilotWidgetProjection.make(snapshot: snapshot, now: now)
+
+        XCTAssertTrue(projection.providerPanels.isEmpty)
+        XCTAssertEqual(
+            projection.emptyStateText,
+            "No local profiles found yet. Add a Codex or Claude profile in Settings."
+        )
+        XCTAssertEqual(projection.lastRefreshText, "Updated 1 min ago")
+    }
 }

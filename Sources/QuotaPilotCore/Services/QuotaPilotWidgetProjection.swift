@@ -31,15 +31,18 @@ public struct QuotaPilotWidgetProviderPanel: Equatable, Sendable {
 public struct QuotaPilotWidgetProjectionResult: Equatable, Sendable {
     public let generatedAt: Date
     public let lastRefreshText: String
+    public let emptyStateText: String?
     public let providerPanels: [QuotaPilotWidgetProviderPanel]
 
     public init(
         generatedAt: Date,
         lastRefreshText: String,
+        emptyStateText: String? = nil,
         providerPanels: [QuotaPilotWidgetProviderPanel]
     ) {
         self.generatedAt = generatedAt
         self.lastRefreshText = lastRefreshText
+        self.emptyStateText = emptyStateText
         self.providerPanels = providerPanels
     }
 }
@@ -79,6 +82,7 @@ public enum QuotaPilotWidgetProjection {
         return QuotaPilotWidgetProjectionResult(
             generatedAt: snapshot.generatedAt,
             lastRefreshText: self.relativeRefreshText(from: snapshot.generatedAt, now: now),
+            emptyStateText: panels.isEmpty ? snapshot.lastUsageRefreshSummary : nil,
             providerPanels: panels
         )
     }
