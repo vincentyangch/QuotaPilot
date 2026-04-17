@@ -8,6 +8,14 @@ struct RulesSettingsView: View {
     @State private var draftLabel = ""
     @State private var draftPath = ""
 
+    private func chooseProfileFolder() {
+        guard let selectedPath = ProfileSourceFolderPicker.chooseFolder(startingAt: self.draftPath) else { return }
+        self.draftPath = selectedPath
+        if self.draftLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.draftLabel = URL(fileURLWithPath: selectedPath, isDirectory: true).lastPathComponent
+        }
+    }
+
     private var discoveredProfilesSection: some View {
         Section("Discovered Local Profiles") {
             Text(self.model.lastUsageRefreshSummary)
@@ -102,8 +110,14 @@ struct RulesSettingsView: View {
             }
 
             TextField("Label", text: self.$draftLabel)
-            TextField("Profile root path", text: self.$draftPath)
-                .textFieldStyle(.roundedBorder)
+            HStack(spacing: 8) {
+                TextField("Profile root path", text: self.$draftPath)
+                    .textFieldStyle(.roundedBorder)
+
+                Button("Choose Folder…") {
+                    self.chooseProfileFolder()
+                }
+            }
 
             Button("Add Profile Source") {
                 self.model.addStoredProfileSource(

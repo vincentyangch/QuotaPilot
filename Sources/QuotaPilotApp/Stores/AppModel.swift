@@ -154,24 +154,24 @@ final class AppModel {
         label: String,
         path: String
     ) {
-        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else { return }
-
-        let normalizedURL = URL(fileURLWithPath: trimmedPath, isDirectory: true).standardizedFileURL
-        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
-        let finalLabel = trimmedLabel.isEmpty ? normalizedURL.lastPathComponent : trimmedLabel
+        guard let normalizedInput = ProfileSourceInputNormalizer.normalize(
+            provider: provider,
+            label: label,
+            path: path
+        ) else { return }
 
         let source = StoredProfileSource(
             id: UUID(),
-            provider: provider,
-            label: finalLabel,
-            profileRootPath: normalizedURL.path,
+            provider: normalizedInput.provider,
+            label: normalizedInput.label,
+            profileRootPath: normalizedInput.normalizedPath,
             isEnabled: true,
             addedAt: Date()
         )
 
         guard !self.storedProfileSources.contains(where: {
-            $0.provider == source.provider && URL(fileURLWithPath: $0.profileRootPath).standardizedFileURL == normalizedURL
+            $0.provider == source.provider
+                && URL(fileURLWithPath: $0.profileRootPath).standardizedFileURL.path == source.profileRootPath
         }) else { return }
 
         self.storedProfileSources.append(source)
