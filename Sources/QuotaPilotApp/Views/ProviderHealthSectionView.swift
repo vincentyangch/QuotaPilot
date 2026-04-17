@@ -4,7 +4,9 @@ import QuotaPilotCore
 struct ProviderHealthSectionView: View {
     let summaries: [ProviderHealthSummary]
     let isRefreshingUsage: Bool
+    let isActivatingProfile: Bool
     let onRefresh: () -> Void
+    let onRestoreManagedBackup: (QuotaProvider, String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -66,6 +68,15 @@ struct ProviderHealthSectionView: View {
 
                     if summary.state != .healthy {
                         HStack(spacing: 10) {
+                            if let recoveryBackupProfileRootPath = summary.recoveryBackupProfileRootPath,
+                               let recoveryBackupLabel = summary.recoveryBackupLabel
+                            {
+                                Button(self.isActivatingProfile ? "Activating..." : "Restore \(recoveryBackupLabel)") {
+                                    self.onRestoreManagedBackup(summary.provider, recoveryBackupProfileRootPath)
+                                }
+                                .disabled(self.isActivatingProfile)
+                            }
+
                             Button(self.isRefreshingUsage ? "Refreshing..." : "Retry Refresh") {
                                 self.onRefresh()
                             }

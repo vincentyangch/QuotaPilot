@@ -98,10 +98,15 @@ struct DashboardView: View {
 
                     ProviderHealthSectionView(
                         summaries: self.model.providerHealthSummaries,
-                        isRefreshingUsage: self.model.isRefreshingUsage
+                        isRefreshingUsage: self.model.isRefreshingUsage,
+                        isActivatingProfile: self.model.isActivatingProfile
                     ) {
                         Task {
                             await self.model.refreshLiveUsage()
+                        }
+                    } onRestoreManagedBackup: { provider, profileRootPath in
+                        Task {
+                            await self.model.activateProfile(provider: provider, profileRootPath: profileRootPath)
                         }
                     }
 

@@ -129,7 +129,8 @@ final class AppModel {
         ProviderHealthSummaryBuilder.makeSummaries(
             discoveredProfiles: self.discoveredProfiles,
             liveAccounts: self.accounts,
-            failures: self.lastAmbientRefreshFailures
+            failures: self.lastAmbientRefreshFailures,
+            currentProfileRootPaths: self.resolvedCurrentProfilePaths
         )
     }
 

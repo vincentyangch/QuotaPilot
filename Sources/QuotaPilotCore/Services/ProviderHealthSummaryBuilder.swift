@@ -14,6 +14,8 @@ public struct ProviderHealthSummary: Equatable, Sendable, Identifiable {
     public let detail: String?
     public let affectedProfilesSummary: String?
     public let recoveryItems: [String]
+    public let recoveryBackupLabel: String?
+    public let recoveryBackupProfileRootPath: String?
     public let nextAutomaticAction: String
     public let manualAction: String
 
@@ -28,6 +30,8 @@ public struct ProviderHealthSummary: Equatable, Sendable, Identifiable {
         detail: String?,
         affectedProfilesSummary: String? = nil,
         recoveryItems: [String] = [],
+        recoveryBackupLabel: String? = nil,
+        recoveryBackupProfileRootPath: String? = nil,
         nextAutomaticAction: String,
         manualAction: String
     ) {
@@ -37,6 +41,8 @@ public struct ProviderHealthSummary: Equatable, Sendable, Identifiable {
         self.detail = detail
         self.affectedProfilesSummary = affectedProfilesSummary
         self.recoveryItems = recoveryItems
+        self.recoveryBackupLabel = recoveryBackupLabel
+        self.recoveryBackupProfileRootPath = recoveryBackupProfileRootPath
         self.nextAutomaticAction = nextAutomaticAction
         self.manualAction = manualAction
     }
@@ -46,12 +52,20 @@ public enum ProviderHealthSummaryBuilder {
     public static func makeSummaries(
         discoveredProfiles: [DiscoveredLocalProfile],
         liveAccounts: [QuotaAccount],
-        failures: [AmbientUsageRefreshFailure]
+        failures: [AmbientUsageRefreshFailure],
+        currentProfileRootPaths: [QuotaProvider: String] = [:]
     ) -> [ProviderHealthSummary] {
         QuotaProvider.allCases.map { provider in
             let providerProfiles = discoveredProfiles.filter { $0.provider == provider }
             let providerAccounts = liveAccounts.filter { $0.provider == provider }
             let providerFailures = failures.filter { $0.provider == provider }
+            let recoveryBackupCandidate = self.recoveryBackupCandidate(
+                provider: provider,
+                discoveredProfiles: discoveredProfiles,
+                liveAccounts: liveAccounts,
+                failures: failures,
+                currentProfileRootPaths: currentProfileRootPaths
+            )
 
             if providerProfiles.isEmpty {
                 return ProviderHealthSummary(
@@ -72,6 +86,8 @@ public enum ProviderHealthSummaryBuilder {
                     detail: providerFailures.first?.detail,
                     affectedProfilesSummary: self.affectedProfilesSummary(for: providerFailures),
                     recoveryItems: self.recoveryItems(for: providerFailures),
+                    recoveryBackupLabel: recoveryBackupCandidate?.label,
+                    recoveryBackupProfileRootPath: recoveryBackupCandidate?.profileRootURL.standardizedFileURL.path,
                     nextAutomaticAction: "QuotaPilot will retry on the next refresh.",
                     manualAction: "Work through the affected profiles below, then retry refresh."
                 )
@@ -85,6 +101,8 @@ public enum ProviderHealthSummaryBuilder {
                     detail: providerFailures.first?.detail,
                     affectedProfilesSummary: self.affectedProfilesSummary(for: providerFailures),
                     recoveryItems: self.recoveryItems(for: providerFailures),
+                    recoveryBackupLabel: recoveryBackupCandidate?.label,
+                    recoveryBackupProfileRootPath: recoveryBackupCandidate?.profileRootURL.standardizedFileURL.path,
                     nextAutomaticAction: "QuotaPilot will keep using the healthy profiles and retry the failed ones on the next refresh.",
                     manualAction: "Review the affected profiles below, then refresh again."
                 )
@@ -110,6 +128,48 @@ public enum ProviderHealthSummaryBuilder {
                 manualAction: "No manual action needed right now."
             )
         }
+    }
+
+    private static func recoveryBackupCandidate(
+        provider: QuotaProvider,
+        discoveredProfiles: [DiscoveredLocalProfile],
+        liveAccounts: [QuotaAccount],
+        failures: [AmbientUsageRefreshFailure],
+        currentProfileRootPaths: [QuotaProvider: String]
+    ) -> DiscoveredLocalProfile? {
+        guard let currentProfileRootPath = currentProfileRootPaths[provider] else { return nil }
+        guard failures.contains(where: {
+            $0.provider == provider && $0.profileRootPath == currentProfileRootPath
+        }) else {
+            return nil
+        }
+
+        return discoveredProfiles
+            .filter { candidate in
+                candidate.provider == provider
+                    && candidate.sourceKind == .backup
+                    && candidate.ownershipMode == .quotaPilotManaged
+                    && candidate.profileRootURL.standardizedFileURL.path != currentProfileRootPath
+                    && !failures.contains(where: {
+                        $0.provider == provider
+                            && $0.profileRootPath == candidate.profileRootURL.standardizedFileURL.path
+                    })
+            }
+            .sorted { lhs, rhs in
+                let lhsHasLiveUsage = liveAccounts.contains {
+                    $0.provider == lhs.provider
+                        && $0.profileRootPath == lhs.profileRootURL.standardizedFileURL.path
+                }
+                let rhsHasLiveUsage = liveAccounts.contains {
+                    $0.provider == rhs.provider
+                        && $0.profileRootPath == rhs.profileRootURL.standardizedFileURL.path
+                }
+                if lhsHasLiveUsage != rhsHasLiveUsage {
+                    return lhsHasLiveUsage && !rhsHasLiveUsage
+                }
+                return lhs.label < rhs.label
+            }
+            .first
     }
 
     private static func affectedProfilesSummary(for failures: [AmbientUsageRefreshFailure]) -> String? {

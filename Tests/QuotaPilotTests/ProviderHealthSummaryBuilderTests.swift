@@ -44,7 +44,8 @@ final class ProviderHealthSummaryBuilderTests: XCTestCase {
                     detail: "Claude usage request failed with HTTP 401.",
                     kind: .requestFailed(statusCode: 401)
                 )
-            ]
+            ],
+            currentProfileRootPaths: [.claude: "/tmp/claude-free"]
         )
 
         let summary = summaries.first(where: { $0.provider == .claude })
@@ -77,7 +78,8 @@ final class ProviderHealthSummaryBuilderTests: XCTestCase {
                     detail: "No usage data returned.",
                     kind: .noUsageData
                 ),
-            ]
+            ],
+            currentProfileRootPaths: [.codex: "/tmp/codex-a"]
         )
 
         let summary = summaries.first(where: { $0.provider == .codex })
@@ -102,6 +104,40 @@ final class ProviderHealthSummaryBuilderTests: XCTestCase {
 
         XCTAssertEqual(summaries.first(where: { $0.provider == .codex })?.state, .notConfigured)
         XCTAssertEqual(summaries.first(where: { $0.provider == .claude })?.state, .notConfigured)
+    }
+
+    func testSuggestsManagedBackupRestoreWhenCurrentProfileIsBroken() {
+        let summaries = ProviderHealthSummaryBuilder.makeSummaries(
+            discoveredProfiles: [
+                self.makeProfile(provider: .codex, label: "Codex Current", rootPath: "/tmp/codex-current"),
+                DiscoveredLocalProfile(
+                    provider: .codex,
+                    label: "Codex Ambient Backup",
+                    email: nil,
+                    plan: nil,
+                    profileRootURL: URL(fileURLWithPath: "/tmp/codex-backup", isDirectory: true),
+                    credentialsURL: URL(fileURLWithPath: "/tmp/codex-backup/auth.json"),
+                    sourceDescription: "QuotaPilot backup profile",
+                    sourceKind: .backup,
+                    ownershipMode: .quotaPilotManaged
+                ),
+            ],
+            liveAccounts: [],
+            failures: [
+                AmbientUsageRefreshFailure(
+                    provider: .codex,
+                    profileLabel: "Codex Current",
+                    profileRootPath: "/tmp/codex-current",
+                    detail: "Codex usage request failed with HTTP 401.",
+                    kind: .requestFailed(statusCode: 401)
+                )
+            ],
+            currentProfileRootPaths: [.codex: "/tmp/codex-current"]
+        )
+
+        let summary = summaries.first(where: { $0.provider == .codex })
+        XCTAssertEqual(summary?.recoveryBackupLabel, "Codex Ambient Backup")
+        XCTAssertEqual(summary?.recoveryBackupProfileRootPath, "/tmp/codex-backup")
     }
 
     private func makeProfile(provider: QuotaProvider, label: String, rootPath: String) -> DiscoveredLocalProfile {
