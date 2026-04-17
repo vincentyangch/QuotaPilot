@@ -41,13 +41,19 @@ public struct AmbientUsageLoader: Sendable {
         self.claudeKeychainProvider = claudeKeychainProvider
     }
 
-    public func loadAccounts(from profiles: [DiscoveredLocalProfile]) async -> AmbientUsageRefreshResult {
+    public func loadAccounts(
+        from profiles: [DiscoveredLocalProfile],
+        currentProfileRootPaths: [QuotaProvider: String] = [:]
+    ) async -> AmbientUsageRefreshResult {
         var accounts: [QuotaAccount] = []
         var failures: [String] = []
 
         for profile in profiles {
             do {
-                if let account = try await self.loadAccount(from: profile) {
+                if let account = try await self.loadAccount(
+                    from: profile,
+                    currentProfileRootPaths: currentProfileRootPaths
+                ) {
                     accounts.append(account)
                 }
             } catch {
@@ -58,7 +64,10 @@ public struct AmbientUsageLoader: Sendable {
         return AmbientUsageRefreshResult(accounts: accounts, failures: failures)
     }
 
-    private func loadAccount(from profile: DiscoveredLocalProfile) async throws -> QuotaAccount? {
+    private func loadAccount(
+        from profile: DiscoveredLocalProfile,
+        currentProfileRootPaths: [QuotaProvider: String]
+    ) async throws -> QuotaAccount? {
         switch profile.provider {
         case .codex:
             let credentials = try self.loadCodexCredentials(from: profile.credentialsURL)
@@ -71,7 +80,11 @@ public struct AmbientUsageLoader: Sendable {
                 throw LoaderError.requestFailed(provider: .codex, statusCode: response.statusCode)
             }
             let decoded = try JSONDecoder().decode(CodexLiveUsageResponse.self, from: data)
-            return self.makeCodexAccount(profile: profile, response: decoded)
+            return self.makeCodexAccount(
+                profile: profile,
+                response: decoded,
+                currentProfileRootPaths: currentProfileRootPaths
+            )
 
         case .claude:
             let credentials = try self.loadClaudeCredentials(from: profile.credentialsURL)
@@ -81,7 +94,11 @@ public struct AmbientUsageLoader: Sendable {
                 throw LoaderError.requestFailed(provider: .claude, statusCode: response.statusCode)
             }
             let decoded = try JSONDecoder().decode(ClaudeLiveUsageResponse.self, from: data)
-            return self.makeClaudeAccount(profile: profile, response: decoded)
+            return self.makeClaudeAccount(
+                profile: profile,
+                response: decoded,
+                currentProfileRootPaths: currentProfileRootPaths
+            )
         }
     }
 
@@ -153,7 +170,8 @@ public struct AmbientUsageLoader: Sendable {
 
     private func makeCodexAccount(
         profile: DiscoveredLocalProfile,
-        response: CodexLiveUsageResponse
+        response: CodexLiveUsageResponse,
+        currentProfileRootPaths: [QuotaProvider: String]
     ) -> QuotaAccount? {
         let windows = [
             self.makeCodexWindow(response.rateLimit?.primaryWindow),
@@ -162,19 +180,22 @@ public struct AmbientUsageLoader: Sendable {
 
         guard !windows.isEmpty else { return nil }
 
+        let isCurrent = self.isCurrentProfile(profile, currentProfileRootPaths: currentProfileRootPaths)
+
         return QuotaAccount(
             id: UUID(),
             provider: .codex,
             label: profile.label,
             priority: Self.priority(for: profile.plan),
-            isCurrent: true,
+            isCurrent: isCurrent,
             windows: windows
         )
     }
 
     private func makeClaudeAccount(
         profile: DiscoveredLocalProfile,
-        response: ClaudeLiveUsageResponse
+        response: ClaudeLiveUsageResponse,
+        currentProfileRootPaths: [QuotaProvider: String]
     ) -> QuotaAccount? {
         let windows = [
             self.makeClaudeWindow(response.fiveHour, title: "Session", minutes: 5 * 60),
@@ -183,12 +204,14 @@ public struct AmbientUsageLoader: Sendable {
 
         guard !windows.isEmpty else { return nil }
 
+        let isCurrent = self.isCurrentProfile(profile, currentProfileRootPaths: currentProfileRootPaths)
+
         return QuotaAccount(
             id: UUID(),
             provider: .claude,
             label: profile.label,
             priority: Self.priority(for: profile.plan),
-            isCurrent: true,
+            isCurrent: isCurrent,
             windows: windows
         )
     }
@@ -272,6 +295,15 @@ public struct AmbientUsageLoader: Sendable {
         }
 
         return ClaudeCredentials(accessToken: accessToken)
+    }
+
+    private func isCurrentProfile(
+        _ profile: DiscoveredLocalProfile,
+        currentProfileRootPaths: [QuotaProvider: String]
+    ) -> Bool {
+        guard let selectedPath = currentProfileRootPaths[profile.provider] else { return true }
+        return profile.profileRootURL.standardizedFileURL.path
+            == URL(fileURLWithPath: selectedPath, isDirectory: true).standardizedFileURL.path
     }
 }
 

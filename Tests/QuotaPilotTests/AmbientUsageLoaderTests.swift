@@ -100,6 +100,70 @@ final class AmbientUsageLoaderTests: XCTestCase {
         XCTAssertEqual(claude.windows.count, 2)
     }
 
+    func testMarksOnlySelectedProfileAsCurrentPerProvider() async throws {
+        let firstCodexRoot = try self.makeTemporaryDirectory(named: "codex-a")
+        let secondCodexRoot = try self.makeTemporaryDirectory(named: "codex-b")
+
+        try self.writeCodexAuth(
+            email: "first@example.com",
+            plan: "plus",
+            to: firstCodexRoot.appendingPathComponent("auth.json")
+        )
+        try self.writeCodexAuth(
+            email: "second@example.com",
+            plan: "pro",
+            to: secondCodexRoot.appendingPathComponent("auth.json")
+        )
+
+        let profiles = [
+            DiscoveredLocalProfile(
+                provider: .codex,
+                label: "first@example.com",
+                email: "first@example.com",
+                plan: "plus",
+                profileRootURL: firstCodexRoot,
+                credentialsURL: firstCodexRoot.appendingPathComponent("auth.json"),
+                sourceDescription: "Ambient local profile"
+            ),
+            DiscoveredLocalProfile(
+                provider: .codex,
+                label: "second@example.com",
+                email: "second@example.com",
+                plan: "pro",
+                profileRootURL: secondCodexRoot,
+                credentialsURL: secondCodexRoot.appendingPathComponent("auth.json"),
+                sourceDescription: "Stored profile source"
+            ),
+        ]
+
+        let loader = AmbientUsageLoader(network: StubRequestPerformer { request in
+            return try Self.makeHTTPResponse(
+                url: request.url!,
+                statusCode: 200,
+                json: """
+                {
+                  "rate_limit": {
+                    "primary_window": {
+                      "used_percent": 40,
+                      "reset_at": 1893456000,
+                      "limit_window_seconds": 300
+                    }
+                  }
+                }
+                """
+            )
+        })
+
+        let result = await loader.loadAccounts(
+            from: profiles,
+            currentProfileRootPaths: [.codex: secondCodexRoot.path]
+        )
+
+        XCTAssertEqual(result.accounts.count, 2)
+        XCTAssertEqual(result.accounts.filter(\.isCurrent).count, 1)
+        XCTAssertEqual(result.accounts.first(where: \.isCurrent)?.label, "second@example.com")
+    }
+
     func testCollectsFailuresWithoutDiscardingSuccessfulAccounts() async throws {
         let codexRoot = try self.makeTemporaryDirectory(named: "codex")
         let claudeRoot = try self.makeTemporaryDirectory(named: "claude")

@@ -24,6 +24,18 @@ struct RulesSettingsView: View {
                             Text(profile.label)
                                 .fontWeight(.semibold)
                             Spacer()
+                            if self.model.isCurrentProfile(profile) {
+                                Text("Current")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Button("Set Current") {
+                                    self.model.selectCurrentProfile(profile)
+                                    Task {
+                                        await self.model.refreshLiveUsage()
+                                    }
+                                }
+                            }
                             if let plan = profile.plan {
                                 Text(plan.uppercased())
                                     .font(.caption.weight(.medium))
