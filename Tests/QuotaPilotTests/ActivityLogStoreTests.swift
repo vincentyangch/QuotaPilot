@@ -66,4 +66,26 @@ final class ActivityLogStoreTests: XCTestCase {
         XCTAssertEqual(loaded.count, 3)
         XCTAssertEqual(loaded.map(\.title), ["Entry 2", "Entry 3", "Entry 4"])
     }
+
+    func testFlagsBackupRestoreEntries() {
+        let restoreEntry = ActivityLogEntry(
+            id: UUID(),
+            timestamp: .now,
+            kind: .activationSucceeded,
+            provider: .codex,
+            title: "Restored backup",
+            detail: "Restored Codex Ambient Backup for Codex."
+        )
+        let activateEntry = ActivityLogEntry(
+            id: UUID(),
+            timestamp: .now,
+            kind: .activationSucceeded,
+            provider: .codex,
+            title: "Activated profile",
+            detail: "Activated Codex Work for Codex."
+        )
+
+        XCTAssertTrue(restoreEntry.isBackupRestore)
+        XCTAssertFalse(activateEntry.isBackupRestore)
+    }
 }

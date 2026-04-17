@@ -29,8 +29,19 @@ struct ActivityLogSectionView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.title)
-                                .fontWeight(.semibold)
+                            HStack(spacing: 8) {
+                                Text(entry.title)
+                                    .fontWeight(.semibold)
+
+                                if entry.isBackupRestore {
+                                    Text("Backup Restore")
+                                        .font(.caption2.weight(.semibold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(.orange.opacity(0.14), in: Capsule())
+                                        .foregroundStyle(.orange)
+                                }
+                            }
                             Text(entry.detail)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)

@@ -42,6 +42,44 @@ struct StaleAccountsWarningView: View {
     }
 }
 
+struct LatestBackupRestoreView: View {
+    let entry: ActivityLogEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            if let provider = self.entry.provider {
+                ProviderIconView(provider: provider, size: 16)
+            } else {
+                Image(systemName: "arrow.uturn.backward.circle.fill")
+                    .foregroundStyle(.orange)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Last Backup Restore")
+                    .font(.headline)
+
+                Text(self.entry.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Text(Self.timestampFormatter.string(from: self.entry.timestamp))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private static let timestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
 struct DashboardView: View {
     let model: AppModel
 
@@ -94,6 +132,10 @@ struct DashboardView: View {
 
                     if self.model.isShowingStaleAccounts {
                         StaleAccountsWarningView(detail: self.model.staleAccountsWarningText)
+                    }
+
+                    if let latestBackupRestoreEntry = self.model.latestBackupRestoreEntry {
+                        LatestBackupRestoreView(entry: latestBackupRestoreEntry)
                     }
 
                     ProviderHealthSectionView(

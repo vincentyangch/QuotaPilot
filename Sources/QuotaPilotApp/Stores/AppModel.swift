@@ -116,6 +116,10 @@ final class AppModel {
         self.engine.recommendationsByProvider(accounts: self.accounts, rules: self.rules)
     }
 
+    var latestBackupRestoreEntry: ActivityLogEntry? {
+        self.activityLogEntries.first(where: \.isBackupRestore)
+    }
+
     var trackedProfileInventoryItems: [TrackedProfileInventoryItem] {
         TrackedProfileInventoryBuilder.makeItems(
             discoveredProfiles: self.discoveredProfiles,

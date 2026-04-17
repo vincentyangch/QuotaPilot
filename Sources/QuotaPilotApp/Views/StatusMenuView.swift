@@ -32,6 +32,10 @@ struct StatusMenuView: View {
                 StaleAccountsWarningView(detail: self.model.staleAccountsWarningText)
             }
 
+            if let latestBackupRestoreEntry = self.model.latestBackupRestoreEntry {
+                LatestBackupRestoreView(entry: latestBackupRestoreEntry)
+            }
+
             Divider()
 
             ProviderHealthSectionView(

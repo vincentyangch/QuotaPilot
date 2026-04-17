@@ -36,4 +36,8 @@ public struct ActivityLogEntry: Identifiable, Codable, Equatable, Sendable {
         self.title = title
         self.detail = detail
     }
+
+    public var isBackupRestore: Bool {
+        self.kind == .activationSucceeded && self.title == "Restored backup"
+    }
 }
