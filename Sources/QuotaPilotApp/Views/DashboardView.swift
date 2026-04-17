@@ -7,30 +7,37 @@ struct DashboardView: View {
     @State private var selection: QuotaAccount.ID?
 
     private var selectedAccount: QuotaAccount? {
-        let selectedID = self.selection ?? self.model.recommendedAccount?.id
-        return self.model.accounts.first(where: { $0.id == selectedID }) ?? self.model.recommendedAccount
+        let selectedID = self.selection ?? self.model.providerRecommendations.first?.recommendedAccount?.id
+        return self.model.accounts.first(where: { $0.id == selectedID })
     }
 
     var body: some View {
         NavigationSplitView {
-            List(self.model.rankedAccounts, selection: self.$selection) { scoredAccount in
-                AccountRowView(
-                    account: scoredAccount.account,
-                    score: scoredAccount.score,
-                    isRecommended: scoredAccount.account.id == self.model.recommendedAccount?.id,
-                    showsScore: true
-                )
-                .tag(scoredAccount.account.id)
+            List(selection: self.$selection) {
+                ForEach(self.model.providerRecommendations) { recommendation in
+                    Section(recommendation.provider.displayName) {
+                        ForEach(recommendation.rankedAccounts) { scoredAccount in
+                            AccountRowView(
+                                account: scoredAccount.account,
+                                score: scoredAccount.score,
+                                isRecommended: scoredAccount.account.id == recommendation.recommendedAccount?.id,
+                                showsScore: true
+                            )
+                            .tag(scoredAccount.account.id)
+                        }
+                    }
+                }
             }
             .navigationTitle("Accounts")
             .listStyle(.sidebar)
         } detail: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    RecommendationCard(
-                        decision: self.model.decision,
-                        account: self.model.recommendedAccount
-                    )
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        ForEach(self.model.providerRecommendations) { recommendation in
+                            RecommendationCard(recommendation: recommendation)
+                        }
+                    }
 
                     if let selectedAccount {
                         VStack(alignment: .leading, spacing: 14) {

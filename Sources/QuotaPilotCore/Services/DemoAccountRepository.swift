@@ -42,7 +42,7 @@ public enum DemoAccountRepository {
                 provider: .claude,
                 label: "Claude Team",
                 priority: 65,
-                isCurrent: false,
+                isCurrent: true,
                 windows: [
                     UsageWindow(id: "weekly", title: "Weekly", remainingPercent: 32, resetsAt: makeResetDate(6)),
                 ]

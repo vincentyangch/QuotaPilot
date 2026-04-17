@@ -2,11 +2,14 @@ import SwiftUI
 import QuotaPilotCore
 
 struct RecommendationCard: View {
-    let decision: RecommendationDecision
-    let account: QuotaAccount?
+    let recommendation: RecommendationEngine.ProviderRecommendation
 
     private var title: String {
-        self.decision.action == .recommendSwitch ? "Recommended Switch" : "Current Best Account"
+        "Best \(self.recommendation.provider.displayName) Account"
+    }
+
+    private var statusText: String {
+        self.recommendation.decision.action == .recommendSwitch ? "Switch suggested" : "Current stays best"
     }
 
     var body: some View {
@@ -17,10 +20,10 @@ struct RecommendationCard: View {
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(self.account?.label ?? "No recommendation")
+                    Text(self.recommendation.recommendedAccount?.label ?? "No recommendation")
                         .font(.title3.weight(.semibold))
 
-                    if let account {
+                    if let account = self.recommendation.recommendedAccount {
                         Label(account.provider.displayName, systemImage: account.provider.symbolName)
                             .foregroundStyle(.secondary)
                     }
@@ -28,14 +31,18 @@ struct RecommendationCard: View {
 
                 Spacer()
 
-                Text("\(self.account?.primaryRemainingPercent ?? 0)%")
+                Text("\(self.recommendation.recommendedAccount?.primaryRemainingPercent ?? 0)%")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundStyle(.tint)
             }
 
-            Text(self.decision.explanation)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(self.statusText)
+                    .font(.subheadline.weight(.semibold))
+                Text(self.recommendation.decision.explanation)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(18)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))

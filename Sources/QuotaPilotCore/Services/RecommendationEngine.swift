@@ -8,6 +8,23 @@ public struct RecommendationEngine: Sendable {
         public var id: UUID { self.account.id }
     }
 
+    public struct ProviderRecommendation: Identifiable, Equatable, Sendable {
+        public let provider: QuotaProvider
+        public let rankedAccounts: [ScoredAccount]
+        public let decision: RecommendationDecision
+
+        public var id: QuotaProvider { self.provider }
+
+        public var currentAccount: QuotaAccount? {
+            guard let currentAccountID = self.decision.currentAccountID else { return nil }
+            return self.rankedAccounts.first(where: { $0.account.id == currentAccountID })?.account
+        }
+
+        public var recommendedAccount: QuotaAccount? {
+            self.rankedAccounts.first(where: { $0.account.id == self.decision.recommendedAccountID })?.account
+        }
+    }
+
     public init() {}
 
     public func rank(
@@ -68,6 +85,26 @@ public struct RecommendationEngine: Sendable {
             recommendedScore: current.score,
             explanation: "\(current.account.label) remains the best account under the current rules."
         )
+    }
+
+    public func recommendationsByProvider(
+        accounts: [QuotaAccount],
+        rules: GlobalRules,
+        now: Date = .now
+    ) -> [ProviderRecommendation] {
+        QuotaProvider.allCases.compactMap { provider in
+            let providerAccounts = accounts.filter { $0.provider == provider }
+            guard !providerAccounts.isEmpty else { return nil }
+
+            let rankedAccounts = self.rank(accounts: providerAccounts, rules: rules, now: now)
+            let decision = self.evaluate(accounts: providerAccounts, rules: rules, now: now)
+
+            return ProviderRecommendation(
+                provider: provider,
+                rankedAccounts: rankedAccounts,
+                decision: decision
+            )
+        }
     }
 
     private func score(

@@ -17,20 +17,16 @@ final class AppModel {
         self.rules = rules
     }
 
-    var currentAccount: QuotaAccount? {
-        self.accounts.first(where: \.isCurrent)
+    var providerRecommendations: [RecommendationEngine.ProviderRecommendation] {
+        self.engine.recommendationsByProvider(accounts: self.accounts, rules: self.rules)
     }
 
-    var decision: RecommendationDecision {
-        self.engine.evaluate(accounts: self.accounts, rules: self.rules)
+    var recommendedAccountIDs: Set<UUID> {
+        Set(self.providerRecommendations.compactMap(\.recommendedAccount?.id))
     }
 
-    var rankedAccounts: [RecommendationEngine.ScoredAccount] {
-        self.engine.rank(accounts: self.accounts, rules: self.rules)
-    }
-
-    var recommendedAccount: QuotaAccount? {
-        self.accounts.first(where: { $0.id == self.decision.recommendedAccountID })
+    func recommendation(for provider: QuotaProvider) -> RecommendationEngine.ProviderRecommendation? {
+        self.providerRecommendations.first(where: { $0.provider == provider })
     }
 
     func reloadDemoData() {

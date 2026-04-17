@@ -2,6 +2,52 @@ import XCTest
 @testable import QuotaPilotCore
 
 final class RecommendationEngineTests: XCTestCase {
+    func testBuildsSeparateRecommendationsForEachProvider() throws {
+        let currentCodex = QuotaAccount.codex(
+            label: "Codex Active",
+            remainingPercent: 10,
+            resetHours: 4,
+            priority: 30,
+            isCurrent: true
+        )
+        let backupCodex = QuotaAccount.codex(
+            label: "Codex Backup",
+            remainingPercent: 70,
+            resetHours: 2,
+            priority: 90,
+            isCurrent: false
+        )
+        let currentClaude = QuotaAccount.claude(
+            label: "Claude Active",
+            remainingPercent: 62,
+            resetHours: 1,
+            priority: 80,
+            isCurrent: true
+        )
+        let backupClaude = QuotaAccount.claude(
+            label: "Claude Backup",
+            remainingPercent: 64,
+            resetHours: 1,
+            priority: 81,
+            isCurrent: false
+        )
+
+        let recommendations = RecommendationEngine().recommendationsByProvider(
+            accounts: [currentCodex, backupCodex, currentClaude, backupClaude],
+            rules: .default
+        )
+
+        XCTAssertEqual(recommendations.map(\.provider), [.codex, .claude])
+
+        let codexRecommendation = try XCTUnwrap(recommendations.first(where: { $0.provider == .codex }))
+        XCTAssertEqual(codexRecommendation.decision.recommendedAccountID, backupCodex.id)
+        XCTAssertEqual(codexRecommendation.decision.action, .recommendSwitch)
+
+        let claudeRecommendation = try XCTUnwrap(recommendations.first(where: { $0.provider == .claude }))
+        XCTAssertEqual(claudeRecommendation.decision.recommendedAccountID, currentClaude.id)
+        XCTAssertEqual(claudeRecommendation.decision.action, .stayCurrent)
+    }
+
     func testPrefersAccountWithHigherCompositeScoreWhenCurrentDropsBelowThreshold() {
         let current = QuotaAccount.codex(
             label: "Codex A",
