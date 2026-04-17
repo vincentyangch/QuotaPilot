@@ -15,6 +15,14 @@ struct RulesSettingsView: View {
             .sorted { $0.provider.displayName < $1.provider.displayName }
     }
 
+    private var providersNeedingAttention: [ProviderHealthSummary] {
+        self.providersNeedingRecovery.filter { $0.recoveryBackupProfileRootPath == nil }
+    }
+
+    private var providerRestoreOptions: [ProviderHealthSummary] {
+        self.providersNeedingRecovery.filter { $0.recoveryBackupProfileRootPath != nil }
+    }
+
     private var trackedProfilesNeedingRecovery: [TrackedProfileInventoryItem] {
         self.model.trackedProfileInventoryItems
             .filter { $0.recoveryActionKind != nil || $0.lastErrorDetail != nil }
@@ -24,6 +32,14 @@ struct RulesSettingsView: View {
                 }
                 return lhs.label < rhs.label
             }
+    }
+
+    private var trackedProfilesNeedingAttention: [TrackedProfileInventoryItem] {
+        self.trackedProfilesNeedingRecovery.filter { $0.recoveryActionKind != .restoreManagedBackup }
+    }
+
+    private var trackedProfileRestoreOptions: [TrackedProfileInventoryItem] {
+        self.trackedProfilesNeedingRecovery.filter { $0.recoveryActionKind == .restoreManagedBackup }
     }
 
     private var automaticRecoveryIssues: [AutomaticActivationRecoveryIssue] {
@@ -36,11 +52,17 @@ struct RulesSettingsView: View {
             }
     }
 
+    private var recentRecoveryEntries: [ActivityLogEntry] {
+        Array(self.model.activityLogEntries.filter(\.isBackupRestore).prefix(3))
+    }
+
     private var recoveryCenterIsEmpty: Bool {
-        self.providersNeedingRecovery.isEmpty
-            && self.trackedProfilesNeedingRecovery.isEmpty
+        self.providersNeedingAttention.isEmpty
+            && self.providerRestoreOptions.isEmpty
+            && self.trackedProfilesNeedingAttention.isEmpty
+            && self.trackedProfileRestoreOptions.isEmpty
             && self.automaticRecoveryIssues.isEmpty
-            && self.model.latestBackupRestoreEntry == nil
+            && self.recentRecoveryEntries.isEmpty
     }
 
     private func chooseProfileFolder() {
@@ -83,168 +105,268 @@ struct RulesSettingsView: View {
                 Text("No recovery actions are needed right now.")
                     .foregroundStyle(.secondary)
             } else {
-                if let latestBackupRestoreEntry = self.model.latestBackupRestoreEntry {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Latest backup restore")
-                            .fontWeight(.semibold)
-                        Text(latestBackupRestoreEntry.detail)
-                            .foregroundStyle(.secondary)
-                        Text(Self.timestampFormatter.string(from: latestBackupRestoreEntry.timestamp))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                if !self.providersNeedingAttention.isEmpty || !self.trackedProfilesNeedingAttention.isEmpty || !self.automaticRecoveryIssues.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        self.recoveryGroupHeader(
+                            title: "Needs Attention",
+                            detail: "Accounts that still need refresh, reauthentication, or manual repair."
+                        )
+
+                        ForEach(self.providersNeedingAttention) { summary in
+                            self.providerRecoveryCard(summary)
+                        }
+
+                        ForEach(self.trackedProfilesNeedingAttention) { item in
+                            self.trackedProfileRecoveryCard(item)
+                        }
+
+                        ForEach(self.automaticRecoveryIssues) { issue in
+                            self.automaticRecoveryCard(issue)
+                        }
                     }
                     .padding(.vertical, 4)
                 }
 
-                if !self.providersNeedingRecovery.isEmpty {
-                    ForEach(self.providersNeedingRecovery) { summary in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 8) {
-                                ProviderIconView(provider: summary.provider, size: 14)
-                                Text(summary.provider.displayName)
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Text(self.healthLabel(for: summary.state))
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(self.healthColor(for: summary.state))
-                            }
+                if !self.providerRestoreOptions.isEmpty || !self.trackedProfileRestoreOptions.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        self.recoveryGroupHeader(
+                            title: "Restore Options",
+                            detail: "Managed backups that QuotaPilot can restore immediately."
+                        )
 
-                            Text(summary.summary)
-                                .foregroundStyle(.secondary)
-
-                            if let affectedProfilesSummary = summary.affectedProfilesSummary {
-                                Text(affectedProfilesSummary)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let detail = summary.detail {
-                                Text(detail)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if !summary.recoveryItems.isEmpty {
-                                ForEach(summary.recoveryItems, id: \.self) { item in
-                                    Text(item)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            HStack(spacing: 10) {
-                                if let recoveryBackupLabel = summary.recoveryBackupLabel,
-                                   let recoveryBackupProfileRootPath = summary.recoveryBackupProfileRootPath
-                                {
-                                    Button(self.model.isActivatingProfile ? "Activating..." : "Restore \(recoveryBackupLabel)") {
-                                        self.activateProfile(
-                                            provider: summary.provider,
-                                            profileRootPath: recoveryBackupProfileRootPath
-                                        )
-                                    }
-                                    .disabled(self.model.isActivatingProfile)
-                                }
-
-                                Button(self.model.isRefreshingUsage ? "Refreshing..." : "Retry Refresh") {
-                                    self.refreshUsage()
-                                }
-                                .disabled(self.model.isRefreshingUsage)
-                            }
+                        ForEach(self.providerRestoreOptions) { summary in
+                            self.providerRestoreOptionCard(summary)
                         }
-                        .padding(.vertical, 4)
+
+                        ForEach(self.trackedProfileRestoreOptions) { item in
+                            self.trackedProfileRestoreOptionCard(item)
+                        }
                     }
+                    .padding(.vertical, 4)
                 }
 
-                if !self.trackedProfilesNeedingRecovery.isEmpty {
-                    ForEach(self.trackedProfilesNeedingRecovery) { item in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 8) {
-                                ProviderIconView(provider: item.provider, size: 14)
-                                Text(item.label)
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Text(item.lifecycleTitle)
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(self.healthColor(for: item.lifecycleState))
-                            }
+                if !self.recentRecoveryEntries.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        self.recoveryGroupHeader(
+                            title: "Recent Recovery",
+                            detail: "Recent managed backup restores recorded by QuotaPilot."
+                        )
 
-                            if let refreshIssueSummary = item.refreshIssueSummary {
-                                Text(refreshIssueSummary)
-                                    .font(.caption)
-                                    .foregroundStyle(.orange)
-                            } else if let lifecycleDetail = item.lifecycleDetail {
-                                Text(lifecycleDetail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let lastErrorDetail = item.lastErrorDetail {
-                                Text(lastErrorDetail)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Text(item.lifecycleNextAction)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-
-                            if let recoveryActionKind = item.recoveryActionKind,
-                               let recoveryActionTitle = item.recoveryActionTitle
-                            {
-                                switch recoveryActionKind {
-                                case .refreshUsage, .restoreManagedBackup:
-                                    Button(
-                                        self.model.isActivatingProfile && recoveryActionKind == .restoreManagedBackup
-                                            ? "Activating..."
-                                            : (self.model.isRefreshingUsage && recoveryActionKind == .refreshUsage
-                                                ? "Refreshing..."
-                                                : recoveryActionTitle)
-                                    ) {
-                                        self.triggerTrackedRecovery(for: item)
-                                    }
-                                    .disabled(
-                                        (recoveryActionKind == .refreshUsage && self.model.isRefreshingUsage)
-                                            || (recoveryActionKind == .restoreManagedBackup && self.model.isActivatingProfile)
-                                    )
-                                case .openSettings:
-                                    Text("Review the profile and source sections below to repair this account.")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                        ForEach(self.recentRecoveryEntries) { entry in
+                            self.recentRecoveryCard(entry)
                         }
-                        .padding(.vertical, 4)
                     }
-                }
-
-                if !self.automaticRecoveryIssues.isEmpty {
-                    ForEach(self.automaticRecoveryIssues) { issue in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 8) {
-                                ProviderIconView(provider: issue.provider, size: 14)
-                                Text(issue.accountLabel)
-                                    .fontWeight(.semibold)
-                            }
-
-                            Text(issue.detail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            HStack(spacing: 10) {
-                                Button(self.model.isRefreshingUsage ? "Refreshing..." : "Retry Refresh") {
-                                    self.refreshUsage()
-                                }
-                                .disabled(self.model.isRefreshingUsage)
-
-                                Button("Dismiss") {
-                                    self.model.dismissAutomaticActivationRecoveryIssue(for: issue.provider)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
+                    .padding(.vertical, 4)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func recoveryGroupHeader(title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func providerRecoveryCard(_ summary: ProviderHealthSummary) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ProviderIconView(provider: summary.provider, size: 14)
+                Text(summary.provider.displayName)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(self.healthLabel(for: summary.state))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(self.healthColor(for: summary.state))
+            }
+
+            Text(summary.summary)
+                .foregroundStyle(.secondary)
+
+            if let affectedProfilesSummary = summary.affectedProfilesSummary {
+                Text(affectedProfilesSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let detail = summary.detail {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !summary.recoveryItems.isEmpty {
+                ForEach(summary.recoveryItems, id: \.self) { item in
+                    Text(item)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button(self.model.isRefreshingUsage ? "Refreshing..." : "Retry Refresh") {
+                    self.refreshUsage()
+                }
+                .disabled(self.model.isRefreshingUsage)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func providerRestoreOptionCard(_ summary: ProviderHealthSummary) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ProviderIconView(provider: summary.provider, size: 14)
+                Text(summary.provider.displayName)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text("Backup Ready")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.orange)
+            }
+
+            Text(summary.summary)
+                .foregroundStyle(.secondary)
+
+            if let recoveryBackupLabel = summary.recoveryBackupLabel,
+               let recoveryBackupProfileRootPath = summary.recoveryBackupProfileRootPath
+            {
+                Button(self.model.isActivatingProfile ? "Activating..." : "Restore \(recoveryBackupLabel)") {
+                    self.activateProfile(
+                        provider: summary.provider,
+                        profileRootPath: recoveryBackupProfileRootPath
+                    )
+                }
+                .disabled(self.model.isActivatingProfile)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func trackedProfileRecoveryCard(_ item: TrackedProfileInventoryItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ProviderIconView(provider: item.provider, size: 14)
+                Text(item.label)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(item.lifecycleTitle)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(self.healthColor(for: item.lifecycleState))
+            }
+
+            if let refreshIssueSummary = item.refreshIssueSummary {
+                Text(refreshIssueSummary)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else if let lifecycleDetail = item.lifecycleDetail {
+                Text(lifecycleDetail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let lastErrorDetail = item.lastErrorDetail {
+                Text(lastErrorDetail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(item.lifecycleNextAction)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            if let recoveryActionKind = item.recoveryActionKind,
+               let recoveryActionTitle = item.recoveryActionTitle
+            {
+                switch recoveryActionKind {
+                case .refreshUsage:
+                    Button(self.model.isRefreshingUsage ? "Refreshing..." : recoveryActionTitle) {
+                        self.triggerTrackedRecovery(for: item)
+                    }
+                    .disabled(self.model.isRefreshingUsage)
+                case .openSettings:
+                    Text("Review the profile and source sections below to repair this account.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                case .restoreManagedBackup:
+                    EmptyView()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func trackedProfileRestoreOptionCard(_ item: TrackedProfileInventoryItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ProviderIconView(provider: item.provider, size: 14)
+                Text(item.label)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text("Backup Ready")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.orange)
+            }
+
+            if let refreshIssueSummary = item.refreshIssueSummary {
+                Text(refreshIssueSummary)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            Text(item.lifecycleNextAction)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            if let recoveryActionTitle = item.recoveryActionTitle {
+                Button(self.model.isActivatingProfile ? "Activating..." : recoveryActionTitle) {
+                    self.triggerTrackedRecovery(for: item)
+                }
+                .disabled(self.model.isActivatingProfile)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func automaticRecoveryCard(_ issue: AutomaticActivationRecoveryIssue) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ProviderIconView(provider: issue.provider, size: 14)
+                Text(issue.accountLabel)
+                    .fontWeight(.semibold)
+            }
+
+            Text(issue.detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Button(self.model.isRefreshingUsage ? "Refreshing..." : "Retry Refresh") {
+                    self.refreshUsage()
+                }
+                .disabled(self.model.isRefreshingUsage)
+
+                Button("Dismiss") {
+                    self.model.dismissAutomaticActivationRecoveryIssue(for: issue.provider)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func recentRecoveryCard(_ entry: ActivityLogEntry) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(entry.detail)
+                .foregroundStyle(.secondary)
+            Text(Self.timestampFormatter.string(from: entry.timestamp))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
