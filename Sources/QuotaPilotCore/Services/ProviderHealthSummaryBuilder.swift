@@ -110,6 +110,8 @@ public enum ProviderHealthSummaryBuilder {
         switch failure.kind {
         case .invalidCredentials:
             return "Refresh or repair the local \(failure.provider.displayName) credentials, then retry."
+        case .noUsageData:
+            return "Open the local app or CLI for this account to renew its session, then retry refresh."
         case let .requestFailed(statusCode) where statusCode == 401 || statusCode == 403:
             return "Reauthenticate \(failure.provider.displayName) locally, then retry."
         case .requestFailed:

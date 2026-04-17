@@ -32,11 +32,12 @@ struct TrackedProfileInventorySectionView: View {
                                         .background(.quaternary, in: Capsule())
                                 }
 
-                                if item.hasLiveUsage {
-                                    Text("Live")
-                                        .font(.caption.weight(.medium))
-                                        .foregroundStyle(.green)
-                                }
+                                Text(item.lifecycleTitle)
+                                    .font(.caption.weight(.medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(self.lifecycleBackground(for: item.lifecycleState), in: Capsule())
+                                    .foregroundStyle(self.lifecycleForeground(for: item.lifecycleState))
                             }
 
                             if let identitySummary = item.identitySummary {
@@ -59,11 +60,15 @@ struct TrackedProfileInventorySectionView: View {
                                     .foregroundStyle(.secondary)
                             }
 
-                            if let lastErrorDetail = item.lastErrorDetail {
-                                Text(lastErrorDetail)
+                            if let lifecycleDetail = item.lifecycleDetail {
+                                Text(lifecycleDetail)
                                     .font(.caption2)
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(self.lifecycleForeground(for: item.lifecycleState))
                             }
+
+                            Text(item.lifecycleNextAction)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
 
                             Text(item.profileRootPath)
                                 .font(.caption2.monospaced())
@@ -87,6 +92,36 @@ struct TrackedProfileInventorySectionView: View {
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
+        }
+    }
+
+    private func lifecycleForeground(for state: TrackedProfileLifecycleState) -> Color {
+        switch state {
+        case .ready:
+            .green
+        case .awaitingRefresh:
+            .secondary
+        case .credentialsMissing, .authExpired:
+            .red
+        case .sessionUnavailable:
+            .orange
+        case .usageReadFailed:
+            .orange
+        }
+    }
+
+    private func lifecycleBackground(for state: TrackedProfileLifecycleState) -> Color {
+        switch state {
+        case .ready:
+            .green.opacity(0.12)
+        case .awaitingRefresh:
+            .secondary.opacity(0.12)
+        case .credentialsMissing, .authExpired:
+            .red.opacity(0.12)
+        case .sessionUnavailable:
+            .orange.opacity(0.12)
+        case .usageReadFailed:
+            .orange.opacity(0.12)
         }
     }
 }

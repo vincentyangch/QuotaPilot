@@ -18,6 +18,10 @@ public enum TrackedProfileInventoryBuilder {
                 $0.provider == profile.provider
                     && $0.profileRootPath == standardizedProfilePath
             }
+            let lifecycleStatus = TrackedProfileLifecycleStatusBuilder.makeStatus(
+                liveAccount: liveAccount,
+                failure: matchingFailure
+            )
             let liveRemainingPercent = liveAccount?.primaryRemainingPercent
             let statusSummary = liveRemainingPercent.map { "\($0)% remaining" } ?? "Awaiting live refresh"
             let lastRefreshSummary = liveAccount?.lastSuccessfulRefreshAt.map {
@@ -39,6 +43,10 @@ public enum TrackedProfileInventoryBuilder {
                 isCurrentSelection: currentProfileRootPaths[profile.provider] == standardizedProfilePath,
                 hasLiveUsage: liveAccount != nil,
                 liveRemainingPercent: liveRemainingPercent,
+                lifecycleState: lifecycleStatus.state,
+                lifecycleTitle: lifecycleStatus.title,
+                lifecycleDetail: lifecycleStatus.detail,
+                lifecycleNextAction: lifecycleStatus.nextAction,
                 capabilitySummary: capabilitySummary,
                 lastRefreshSummary: lastRefreshSummary,
                 lastErrorDetail: matchingFailure?.detail,

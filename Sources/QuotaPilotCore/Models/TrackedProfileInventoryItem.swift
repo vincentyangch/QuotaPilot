@@ -11,6 +11,10 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
     public let isCurrentSelection: Bool
     public let hasLiveUsage: Bool
     public let liveRemainingPercent: Int?
+    public let lifecycleState: TrackedProfileLifecycleState
+    public let lifecycleTitle: String
+    public let lifecycleDetail: String?
+    public let lifecycleNextAction: String
     public let capabilitySummary: String
     public let lastRefreshSummary: String?
     public let lastErrorDetail: String?

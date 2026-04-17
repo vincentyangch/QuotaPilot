@@ -243,6 +243,46 @@ final class AmbientUsageLoaderTests: XCTestCase {
         XCTAssertEqual(result.failures.first?.kind, .requestFailed(statusCode: 401))
     }
 
+    func testReportsNoUsageDataWhenProviderReturnsNoWindows() async throws {
+        let codexRoot = try self.makeTemporaryDirectory(named: "codex")
+
+        try self.writeCodexAuth(
+            email: "codex@example.com",
+            plan: "plus",
+            to: codexRoot.appendingPathComponent("auth.json")
+        )
+
+        let profiles = [
+            DiscoveredLocalProfile(
+                provider: .codex,
+                label: "codex@example.com",
+                email: "codex@example.com",
+                plan: "plus",
+                profileRootURL: codexRoot,
+                credentialsURL: codexRoot.appendingPathComponent("auth.json"),
+                sourceDescription: "Test"
+            )
+        ]
+
+        let loader = AmbientUsageLoader(network: StubRequestPerformer { request in
+            try Self.makeHTTPResponse(
+                url: request.url!,
+                statusCode: 200,
+                json: """
+                {
+                  "rate_limit": {}
+                }
+                """
+            )
+        })
+
+        let result = await loader.loadAccounts(from: profiles)
+
+        XCTAssertTrue(result.accounts.isEmpty)
+        XCTAssertEqual(result.failures.count, 1)
+        XCTAssertEqual(result.failures.first?.kind, .noUsageData)
+    }
+
     private func makeTemporaryDirectory(named name: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

@@ -5,6 +5,7 @@ import FoundationNetworking
 
 public enum AmbientUsageFailureKind: Equatable, Sendable {
     case invalidCredentials
+    case noUsageData
     case requestFailed(statusCode: Int)
     case unexpected
 }
@@ -108,11 +109,14 @@ public struct AmbientUsageLoader: Sendable {
                 throw LoaderError.requestFailed(provider: .codex, statusCode: response.statusCode)
             }
             let decoded = try JSONDecoder().decode(CodexLiveUsageResponse.self, from: data)
-            return self.makeCodexAccount(
+            guard let account = self.makeCodexAccount(
                 profile: profile,
                 response: decoded,
                 currentProfileRootPaths: currentProfileRootPaths
-            )
+            ) else {
+                throw LoaderError.noUsageData(provider: .codex)
+            }
+            return account
 
         case .claude:
             let credentials = try self.loadClaudeCredentials(from: profile.credentialsURL)
@@ -122,11 +126,14 @@ public struct AmbientUsageLoader: Sendable {
                 throw LoaderError.requestFailed(provider: .claude, statusCode: response.statusCode)
             }
             let decoded = try JSONDecoder().decode(ClaudeLiveUsageResponse.self, from: data)
-            return self.makeClaudeAccount(
+            guard let account = self.makeClaudeAccount(
                 profile: profile,
                 response: decoded,
                 currentProfileRootPaths: currentProfileRootPaths
-            )
+            ) else {
+                throw LoaderError.noUsageData(provider: .claude)
+            }
+            return account
         }
     }
 
@@ -360,6 +367,14 @@ public struct AmbientUsageLoader: Sendable {
                     detail: loaderError.localizedDescription,
                     kind: .invalidCredentials
                 )
+            case .noUsageData:
+                return AmbientUsageRefreshFailure(
+                    provider: profile.provider,
+                    profileLabel: profile.label,
+                    profileRootPath: profile.profileRootURL.standardizedFileURL.path,
+                    detail: loaderError.localizedDescription,
+                    kind: .noUsageData
+                )
             case let .requestFailed(_, statusCode):
                 return AmbientUsageRefreshFailure(
                     provider: profile.provider,
@@ -392,12 +407,15 @@ private struct ClaudeCredentials {
 
 private enum LoaderError: LocalizedError {
     case invalidCredentials(provider: QuotaProvider)
+    case noUsageData(provider: QuotaProvider)
     case requestFailed(provider: QuotaProvider, statusCode: Int)
 
     var errorDescription: String? {
         switch self {
         case let .invalidCredentials(provider):
             return "Invalid \(provider.displayName) credentials."
+        case .noUsageData:
+            return "No live usage windows were returned."
         case let .requestFailed(provider, statusCode):
             return "\(provider.displayName) usage request failed with HTTP \(statusCode)."
         }
