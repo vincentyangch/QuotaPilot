@@ -33,6 +33,27 @@ struct ProviderHealthSectionView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if let affectedProfilesSummary = summary.affectedProfilesSummary {
+                        Text(affectedProfilesSummary)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if !summary.recoveryItems.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(summary.recoveryItems, id: \.self) { item in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "arrow.turn.down.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(item)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+
                     Text(summary.nextAutomaticAction)
                         .font(.caption2)
                         .foregroundStyle(.secondary)

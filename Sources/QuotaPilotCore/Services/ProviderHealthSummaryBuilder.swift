@@ -12,6 +12,8 @@ public struct ProviderHealthSummary: Equatable, Sendable, Identifiable {
     public let state: ProviderHealthState
     public let summary: String
     public let detail: String?
+    public let affectedProfilesSummary: String?
+    public let recoveryItems: [String]
     public let nextAutomaticAction: String
     public let manualAction: String
 
@@ -24,6 +26,8 @@ public struct ProviderHealthSummary: Equatable, Sendable, Identifiable {
         state: ProviderHealthState,
         summary: String,
         detail: String?,
+        affectedProfilesSummary: String? = nil,
+        recoveryItems: [String] = [],
         nextAutomaticAction: String,
         manualAction: String
     ) {
@@ -31,6 +35,8 @@ public struct ProviderHealthSummary: Equatable, Sendable, Identifiable {
         self.state = state
         self.summary = summary
         self.detail = detail
+        self.affectedProfilesSummary = affectedProfilesSummary
+        self.recoveryItems = recoveryItems
         self.nextAutomaticAction = nextAutomaticAction
         self.manualAction = manualAction
     }
@@ -64,8 +70,10 @@ public enum ProviderHealthSummaryBuilder {
                     state: .unavailable,
                     summary: "Live usage is currently unavailable.",
                     detail: providerFailures.first?.detail,
+                    affectedProfilesSummary: self.affectedProfilesSummary(for: providerFailures),
+                    recoveryItems: self.recoveryItems(for: providerFailures),
                     nextAutomaticAction: "QuotaPilot will retry on the next refresh.",
-                    manualAction: self.manualActionText(for: providerFailures.first)
+                    manualAction: "Work through the affected profiles below, then retry refresh."
                 )
             }
 
@@ -75,8 +83,10 @@ public enum ProviderHealthSummaryBuilder {
                     state: .degraded,
                     summary: "Loaded \(providerAccounts.count) of \(providerProfiles.count) profile(s).",
                     detail: providerFailures.first?.detail,
+                    affectedProfilesSummary: self.affectedProfilesSummary(for: providerFailures),
+                    recoveryItems: self.recoveryItems(for: providerFailures),
                     nextAutomaticAction: "QuotaPilot will keep using the healthy profiles and retry the failed ones on the next refresh.",
-                    manualAction: self.manualActionText(for: providerFailures.first)
+                    manualAction: "Review the affected profiles below, then refresh again."
                 )
             }
 
@@ -102,18 +112,28 @@ public enum ProviderHealthSummaryBuilder {
         }
     }
 
-    private static func manualActionText(for failure: AmbientUsageRefreshFailure?) -> String {
-        guard let failure else {
-            return "Refresh live usage again after checking the local profile."
-        }
+    private static func affectedProfilesSummary(for failures: [AmbientUsageRefreshFailure]) -> String? {
+        let labels = Array(Set(failures.map(\.profileLabel))).sorted()
+        guard !labels.isEmpty else { return nil }
 
+        let heading = labels.count == 1 ? "Affected profile" : "Affected profiles"
+        return "\(heading): \(labels.joined(separator: ", "))"
+    }
+
+    private static func recoveryItems(for failures: [AmbientUsageRefreshFailure]) -> [String] {
+        failures.map { failure in
+            "\(failure.profileLabel): \(self.recoveryText(for: failure))"
+        }
+    }
+
+    private static func recoveryText(for failure: AmbientUsageRefreshFailure) -> String {
         switch failure.kind {
         case .invalidCredentials:
-            return "Refresh or repair the local \(failure.provider.displayName) credentials, then retry."
+            return "Repair or restore the local credentials, then refresh."
         case .noUsageData:
-            return "Open the local app or CLI for this account to renew its session, then retry refresh."
+            return "Open the local app or CLI to renew its session, then refresh."
         case let .requestFailed(statusCode) where statusCode == 401 || statusCode == 403:
-            return "Reauthenticate \(failure.provider.displayName) locally, then retry."
+            return "Reauthenticate locally, then refresh."
         case .requestFailed:
             return "Retry refresh. If it keeps failing, check network access and provider availability."
         case .unexpected:

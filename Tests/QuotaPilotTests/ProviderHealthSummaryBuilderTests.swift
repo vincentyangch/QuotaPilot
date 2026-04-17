@@ -49,7 +49,48 @@ final class ProviderHealthSummaryBuilderTests: XCTestCase {
 
         let summary = summaries.first(where: { $0.provider == .claude })
         XCTAssertEqual(summary?.state, .degraded)
-        XCTAssertEqual(summary?.manualAction, "Reauthenticate Claude locally, then retry.")
+        XCTAssertEqual(summary?.affectedProfilesSummary, "Affected profile: Claude Max")
+        XCTAssertEqual(
+            summary?.recoveryItems,
+            ["Claude Max: Reauthenticate locally, then refresh."]
+        )
+        XCTAssertEqual(summary?.manualAction, "Review the affected profiles below, then refresh again.")
+    }
+
+    func testBuildsRecoveryChecklistForMultipleAffectedProfiles() {
+        let summaries = ProviderHealthSummaryBuilder.makeSummaries(
+            discoveredProfiles: [
+                self.makeProfile(provider: .codex, label: "Codex A", rootPath: "/tmp/codex-a"),
+                self.makeProfile(provider: .codex, label: "Codex B", rootPath: "/tmp/codex-b"),
+            ],
+            liveAccounts: [],
+            failures: [
+                AmbientUsageRefreshFailure(
+                    provider: .codex,
+                    profileLabel: "Codex A",
+                    detail: "Missing credentials.",
+                    kind: .invalidCredentials
+                ),
+                AmbientUsageRefreshFailure(
+                    provider: .codex,
+                    profileLabel: "Codex B",
+                    detail: "No usage data returned.",
+                    kind: .noUsageData
+                ),
+            ]
+        )
+
+        let summary = summaries.first(where: { $0.provider == .codex })
+        XCTAssertEqual(summary?.state, .unavailable)
+        XCTAssertEqual(summary?.affectedProfilesSummary, "Affected profiles: Codex A, Codex B")
+        XCTAssertEqual(
+            summary?.recoveryItems,
+            [
+                "Codex A: Repair or restore the local credentials, then refresh.",
+                "Codex B: Open the local app or CLI to renew its session, then refresh.",
+            ]
+        )
+        XCTAssertEqual(summary?.manualAction, "Work through the affected profiles below, then retry refresh.")
     }
 
     func testMarksProviderNotConfiguredWhenNoProfilesAreDiscovered() {
