@@ -63,6 +63,19 @@ struct DashboardView: View {
                         }
                     }
 
+                    if !self.model.pendingSwitchConfirmations.isEmpty {
+                        PendingSwitchConfirmationsSectionView(
+                            confirmations: self.model.pendingSwitchConfirmations,
+                            isActivatingProfile: self.model.isActivatingProfile
+                        ) { provider in
+                            Task {
+                                await self.model.approvePendingSwitch(for: provider)
+                            }
+                        } onDismiss: { provider in
+                            self.model.dismissPendingSwitch(for: provider)
+                        }
+                    }
+
                     if let selectedAccount {
                         VStack(alignment: .leading, spacing: 14) {
                             Text(selectedAccount.label)
