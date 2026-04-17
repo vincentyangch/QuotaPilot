@@ -5,9 +5,11 @@ import QuotaPilotCore
 @Observable
 final class AppModel {
     private let engine = RecommendationEngine()
+    private let profileDiscovery: LocalProfileDiscovery
     private let rulesStorage: GlobalRulesStorage
 
     var accounts: [QuotaAccount]
+    var discoveredProfiles: [DiscoveredLocalProfile]
     var rules: GlobalRules {
         didSet {
             self.rulesStorage.save(self.rules)
@@ -16,11 +18,14 @@ final class AppModel {
 
     init(
         accounts: [QuotaAccount] = DemoAccountRepository.makeAccounts(),
+        profileDiscovery: LocalProfileDiscovery = LocalProfileDiscovery(),
         rulesStorage: GlobalRulesStorage = GlobalRulesStorage(),
         rules: GlobalRules? = nil
     ) {
+        self.profileDiscovery = profileDiscovery
         self.rulesStorage = rulesStorage
         self.accounts = accounts
+        self.discoveredProfiles = profileDiscovery.discoverDefaultProfiles()
         self.rules = rules ?? rulesStorage.load()
     }
 
@@ -38,6 +43,10 @@ final class AppModel {
 
     func reloadDemoData() {
         self.accounts = DemoAccountRepository.makeAccounts()
+    }
+
+    func refreshDiscoveredProfiles() {
+        self.discoveredProfiles = self.profileDiscovery.discoverDefaultProfiles()
     }
 
     func updateSwitchThreshold(_ value: Int) {
