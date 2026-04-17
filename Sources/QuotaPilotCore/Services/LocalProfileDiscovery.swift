@@ -66,9 +66,19 @@ public struct LocalProfileDiscovery {
             (payload?["email"] as? String)
             ?? (payload?["https://api.openai.com/profile"] as? [String: Any]).flatMap { $0["email"] as? String }
         )
+        let profile = payload?["https://api.openai.com/profile"] as? [String: Any]
         let plan = Self.normalizedString(
             (auth?["chatgpt_plan_type"] as? String)
             ?? (payload?["chatgpt_plan_type"] as? String)
+        )
+        let organizationLabel = Self.normalizedString(
+            (profile?["org_name"] as? String)
+            ?? (profile?["organization_name"] as? String)
+            ?? (profile?["organizationName"] as? String)
+        )
+        let workspaceLabel = Self.normalizedString(
+            (profile?["workspace_name"] as? String)
+            ?? (profile?["workspaceName"] as? String)
         )
 
         guard tokens != nil || json["OPENAI_API_KEY"] != nil else { return nil }
@@ -78,6 +88,8 @@ public struct LocalProfileDiscovery {
             label: email ?? candidate.labelHint,
             email: email,
             plan: plan,
+            organizationLabel: organizationLabel,
+            workspaceLabel: workspaceLabel,
             profileRootURL: candidate.profileRootURL,
             credentialsURL: candidate.credentialsURL,
             sourceDescription: candidate.sourceDescription,
@@ -121,6 +133,14 @@ public struct LocalProfileDiscovery {
         guard let accessToken = oauth["accessToken"] as? String, !accessToken.isEmpty else { return nil }
 
         let plan = Self.normalizedString(oauth["rateLimitTier"] as? String)
+        let organizationLabel = Self.normalizedString(
+            (oauth["organizationName"] as? String)
+            ?? (oauth["organization_name"] as? String)
+        )
+        let workspaceLabel = Self.normalizedString(
+            (oauth["workspaceName"] as? String)
+            ?? (oauth["workspace_name"] as? String)
+        )
         let label = plan.map { "Claude \($0.capitalized)" } ?? candidate.labelHint
 
         return DiscoveredLocalProfile(
@@ -128,6 +148,8 @@ public struct LocalProfileDiscovery {
             label: label,
             email: nil,
             plan: plan,
+            organizationLabel: organizationLabel,
+            workspaceLabel: workspaceLabel,
             profileRootURL: candidate.profileRootURL,
             credentialsURL: candidate.credentialsURL,
             sourceDescription: sourceDescription,

@@ -10,6 +10,10 @@ final class LocalProfileDiscoveryTests: XCTestCase {
         let payload = """
         {
           "email": "work@example.com",
+          "https://api.openai.com/profile": {
+            "workspace_name": "Research",
+            "org_name": "OpenAI"
+          },
           "https://api.openai.com/auth": {
             "chatgpt_plan_type": "pro"
           }
@@ -47,6 +51,8 @@ final class LocalProfileDiscoveryTests: XCTestCase {
         XCTAssertEqual(discovered.email, "work@example.com")
         XCTAssertEqual(discovered.plan, "pro")
         XCTAssertEqual(discovered.label, "work@example.com")
+        XCTAssertEqual(discovered.organizationLabel, "OpenAI")
+        XCTAssertEqual(discovered.workspaceLabel, "Research")
     }
 
     func testDiscoversClaudeProfileFromCredentialsFile() throws {
@@ -60,7 +66,9 @@ final class LocalProfileDiscoveryTests: XCTestCase {
             "accessToken": "access",
             "refreshToken": "refresh",
             "expiresAt": 1893456000000,
-            "rateLimitTier": "max"
+            "rateLimitTier": "max",
+            "organizationName": "Anthropic",
+            "workspaceName": "Writer Room"
           }
         }
         """
@@ -86,6 +94,8 @@ final class LocalProfileDiscoveryTests: XCTestCase {
         XCTAssertNil(discovered.email)
         XCTAssertEqual(discovered.plan, "max")
         XCTAssertEqual(discovered.label, "Claude Max")
+        XCTAssertEqual(discovered.organizationLabel, "Anthropic")
+        XCTAssertEqual(discovered.workspaceLabel, "Writer Room")
     }
 
     func testDiscoversClaudeProfileFromKeychainWhenFileIsMissing() throws {

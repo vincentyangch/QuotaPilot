@@ -57,8 +57,8 @@ struct RulesSettingsView: View {
                             .disabled(self.model.isActivatingProfile)
                         }
 
-                        if let email = profile.email {
-                            Text(email)
+                        if let identitySummary = profile.identitySummary {
+                            Text(identitySummary)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

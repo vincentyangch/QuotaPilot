@@ -36,7 +36,9 @@ public enum TrackedProfileInventoryBuilder {
                 plan: profile.plan,
                 identitySummary: liveAccount?.identitySummary ?? self.identitySummary(
                     email: profile.email,
-                    plan: profile.plan
+                    plan: profile.plan,
+                    organizationLabel: profile.organizationLabel,
+                    workspaceLabel: profile.workspaceLabel
                 ),
                 profileRootPath: standardizedProfilePath,
                 sourceDescription: profile.sourceDescription,
@@ -61,10 +63,16 @@ public enum TrackedProfileInventoryBuilder {
         }
     }
 
-    private static func identitySummary(email: String?, plan: String?) -> String? {
+    private static func identitySummary(
+        email: String?,
+        plan: String?,
+        organizationLabel: String?,
+        workspaceLabel: String?
+    ) -> String? {
         let parts = [
             email,
             plan?.uppercased(),
+            workspaceLabel ?? organizationLabel,
         ].compactMap { value in
             value?.trimmingCharacters(in: .whitespacesAndNewlines)
         }.filter { !$0.isEmpty }
