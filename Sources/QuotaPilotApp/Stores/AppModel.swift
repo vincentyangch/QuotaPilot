@@ -7,6 +7,7 @@ import QuotaPilotCore
 final class AppModel {
     private let engine = RecommendationEngine()
     private let ambientUsageLoader: AmbientUsageLoader
+    private let profileActivator: LocalProfileActivator
     private let profileDiscovery: LocalProfileDiscovery
     private let currentProfileSelectionStore: CurrentProfileSelectionStoring
     private let profileSourceStore: StoredProfileSourceStoring
@@ -18,7 +19,9 @@ final class AppModel {
     var currentProfileSelections: [QuotaProvider: String]
     var discoveredProfiles: [DiscoveredLocalProfile]
     var storedProfileSources: [StoredProfileSource]
+    var isActivatingProfile = false
     var isRefreshingUsage = false
+    var lastProfileActionSummary: String?
     var lastUsageRefreshSummary: String
     var rules: GlobalRules {
         didSet {
@@ -29,6 +32,7 @@ final class AppModel {
     init(
         accounts: [QuotaAccount] = DemoAccountRepository.makeAccounts(),
         ambientUsageLoader: AmbientUsageLoader = AmbientUsageLoader(),
+        profileActivator: LocalProfileActivator = LocalProfileActivator(),
         profileDiscovery: LocalProfileDiscovery = LocalProfileDiscovery(),
         currentProfileSelectionStore: CurrentProfileSelectionStoring = FileCurrentProfileSelectionStore(),
         profileSourceStore: StoredProfileSourceStoring = FileStoredProfileSourceStore(),
@@ -37,15 +41,20 @@ final class AppModel {
         rules: GlobalRules? = nil
     ) {
         self.ambientUsageLoader = ambientUsageLoader
+        self.profileActivator = profileActivator
         self.profileDiscovery = profileDiscovery
         self.currentProfileSelectionStore = currentProfileSelectionStore
         self.profileSourceStore = profileSourceStore
         self.rulesStorage = rulesStorage
         self.homeURL = homeURL
         let storedSources = (try? profileSourceStore.loadSources()) ?? []
-        let candidates = ProfileSourceCatalog.makeCandidates(homeURL: homeURL, storedSources: storedSources)
-        let discoveredProfiles = profileDiscovery.discover(candidates: candidates)
         let currentSelections = (try? currentProfileSelectionStore.loadSelections()) ?? [:]
+        let candidates = ProfileSourceCatalog.makeCandidates(
+            homeURL: homeURL,
+            storedSources: storedSources,
+            preferredSelections: currentSelections
+        )
+        let discoveredProfiles = profileDiscovery.discover(candidates: candidates)
         self.accounts = accounts
         self.currentProfileSelections = currentSelections
         self.discoveredProfiles = discoveredProfiles
@@ -86,7 +95,8 @@ final class AppModel {
         self.currentProfileSelections = (try? self.currentProfileSelectionStore.loadSelections()) ?? self.currentProfileSelections
         let candidates = ProfileSourceCatalog.makeCandidates(
             homeURL: self.homeURL,
-            storedSources: self.storedProfileSources
+            storedSources: self.storedProfileSources,
+            preferredSelections: self.currentProfileSelections
         )
         self.discoveredProfiles = self.profileDiscovery.discover(candidates: candidates)
     }
@@ -182,6 +192,45 @@ final class AppModel {
     func selectCurrentProfile(_ profile: DiscoveredLocalProfile) {
         self.currentProfileSelections[profile.provider] = profile.profileRootURL.standardizedFileURL.path
         try? self.currentProfileSelectionStore.saveSelections(self.currentProfileSelections)
+        self.refreshDiscoveredProfiles()
+    }
+
+    func activateProfile(_ profile: DiscoveredLocalProfile) async {
+        self.isActivatingProfile = true
+        defer { self.isActivatingProfile = false }
+
+        do {
+            let result = try self.profileActivator.activate(profile: profile)
+            if let backupSource = result.createdBackupSource,
+               !self.storedProfileSources.contains(where: {
+                   $0.provider == backupSource.provider
+                       && URL(fileURLWithPath: $0.profileRootPath, isDirectory: true).standardizedFileURL.path
+                       == backupSource.profileRootURL.standardizedFileURL.path
+               })
+            {
+                self.storedProfileSources.append(backupSource)
+                try? self.profileSourceStore.saveSources(self.storedProfileSources)
+            }
+
+            self.currentProfileSelections[profile.provider] = result.activatedProfileRootPath
+            try? self.currentProfileSelectionStore.saveSelections(self.currentProfileSelections)
+            self.lastProfileActionSummary = "Activated \(profile.label) for \(profile.provider.displayName)."
+            await self.refreshLiveUsage()
+        } catch {
+            self.lastProfileActionSummary = "Could not activate \(profile.label): \(error.localizedDescription)"
+        }
+    }
+
+    func activateProfile(provider: QuotaProvider, profileRootPath: String) async {
+        guard let profile = self.discoveredProfiles.first(where: {
+            $0.provider == provider
+                && $0.profileRootURL.standardizedFileURL.path
+                == URL(fileURLWithPath: profileRootPath, isDirectory: true).standardizedFileURL.path
+        }) else {
+            self.lastProfileActionSummary = "Could not find that profile to activate."
+            return
+        }
+        await self.activateProfile(profile)
     }
 
     func removeStoredProfileSource(id: UUID) {

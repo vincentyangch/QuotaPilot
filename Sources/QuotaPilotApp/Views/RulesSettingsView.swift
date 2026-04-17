@@ -49,6 +49,12 @@ struct RulesSettingsView: View {
                                     .font(.caption.weight(.medium))
                                     .foregroundStyle(.secondary)
                             }
+                            Button(self.model.isActivatingProfile ? "Activating..." : "Activate") {
+                                Task {
+                                    await self.model.activateProfile(profile)
+                                }
+                            }
+                            .disabled(self.model.isActivatingProfile)
                         }
 
                         if let email = profile.email {
@@ -75,6 +81,11 @@ struct RulesSettingsView: View {
                 }
             }
             .disabled(self.model.isRefreshingUsage)
+
+            if let lastProfileActionSummary = self.model.lastProfileActionSummary {
+                Text(lastProfileActionSummary)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

@@ -58,4 +58,28 @@ final class ProfileSourceCatalogTests: XCTestCase {
         XCTAssertEqual(candidates.filter { $0.provider == .codex }.count, 1)
         XCTAssertFalse(candidates.contains(where: { $0.profileRootURL.path == "/Users/tester/custom-claude" }))
     }
+
+    func testSkipsAmbientCandidateWhenStoredSelectionIsActive() {
+        let home = URL(fileURLWithPath: "/Users/tester", isDirectory: true)
+        let sources = [
+            StoredProfileSource(
+                id: UUID(),
+                provider: .codex,
+                label: "Codex Work",
+                profileRootPath: "/Users/tester/.quotapilot/codex-work",
+                isEnabled: true,
+                addedAt: .now
+            )
+        ]
+
+        let candidates = ProfileSourceCatalog.makeCandidates(
+            homeURL: home,
+            storedSources: sources,
+            preferredSelections: [.codex: "/Users/tester/.quotapilot/codex-work"]
+        )
+
+        XCTAssertFalse(candidates.contains(where: { $0.provider == .codex && $0.profileRootURL.path == "/Users/tester/.codex" }))
+        XCTAssertTrue(candidates.contains(where: { $0.provider == .codex && $0.profileRootURL.path == "/Users/tester/.quotapilot/codex-work" }))
+        XCTAssertTrue(candidates.contains(where: { $0.provider == .claude && $0.profileRootURL.path == "/Users/tester/.claude" }))
+    }
 }

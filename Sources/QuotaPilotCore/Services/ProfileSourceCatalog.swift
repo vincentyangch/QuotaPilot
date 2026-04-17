@@ -3,7 +3,8 @@ import Foundation
 public enum ProfileSourceCatalog {
     public static func makeCandidates(
         homeURL: URL = FileManager.default.homeDirectoryForCurrentUser,
-        storedSources: [StoredProfileSource]
+        storedSources: [StoredProfileSource],
+        preferredSelections: [QuotaProvider: String] = [:]
     ) -> [LocalProfileCandidate] {
         let ambientCandidates: [LocalProfileCandidate] = [
             .codex(
@@ -16,7 +17,11 @@ public enum ProfileSourceCatalog {
                 labelHint: "Claude Ambient",
                 sourceDescription: "Ambient local profile"
             ),
-        ]
+        ].filter { candidate in
+            guard let preferredPath = preferredSelections[candidate.provider] else { return true }
+            return URL(fileURLWithPath: preferredPath, isDirectory: true).standardizedFileURL.path
+                == candidate.profileRootURL.standardizedFileURL.path
+        }
 
         let storedCandidates: [LocalProfileCandidate] = storedSources.compactMap { source in
             guard source.isEnabled else { return nil }

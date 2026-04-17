@@ -43,7 +43,17 @@ struct DashboardView: View {
                         }
                     }
 
-                    TrackedProfileInventorySectionView(items: self.model.trackedProfileInventoryItems)
+                    TrackedProfileInventorySectionView(
+                        isActivatingProfile: self.model.isActivatingProfile,
+                        items: self.model.trackedProfileInventoryItems
+                    ) { item in
+                        Task {
+                            await self.model.activateProfile(
+                                provider: item.provider,
+                                profileRootPath: item.profileRootPath
+                            )
+                        }
+                    }
 
                     if let selectedAccount {
                         VStack(alignment: .leading, spacing: 14) {

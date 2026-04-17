@@ -2,7 +2,9 @@ import SwiftUI
 import QuotaPilotCore
 
 struct TrackedProfileInventorySectionView: View {
+    let isActivatingProfile: Bool
     let items: [TrackedProfileInventoryItem]
+    let onActivate: (TrackedProfileInventoryItem) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -65,6 +67,13 @@ struct TrackedProfileInventorySectionView: View {
                         }
 
                         Spacer()
+
+                        if !item.isCurrentSelection {
+                            Button(self.isActivatingProfile ? "Activating..." : "Activate") {
+                                self.onActivate(item)
+                            }
+                            .disabled(self.isActivatingProfile)
+                        }
                     }
                     .padding(14)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
