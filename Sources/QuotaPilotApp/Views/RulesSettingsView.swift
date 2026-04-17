@@ -2,12 +2,20 @@ import SwiftUI
 import QuotaPilotCore
 
 struct RulesSettingsView: View {
+    private enum RecoveryGroup: Hashable {
+        case needsAttention
+        case restoreOptions
+        case recentRecovery
+    }
+
     let model: AppModel
 
     @State private var draftProvider: QuotaProvider = .codex
     @State private var draftLabel = ""
     @State private var draftPath = ""
     @State private var pendingRemovalSource: StoredProfileSource?
+    @State private var expandedRecoveryGroups: Set<RecoveryGroup> = []
+    @State private var didSeedRecoveryGroups = false
 
     private var providersNeedingRecovery: [ProviderHealthSummary] {
         self.model.providerHealthSummaries
@@ -120,86 +128,137 @@ struct RulesSettingsView: View {
                     .foregroundStyle(.secondary)
             } else {
                 if !self.providersNeedingAttention.isEmpty || !self.trackedProfilesNeedingAttention.isEmpty || !self.automaticRecoveryIssues.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        self.recoveryGroupHeader(
+                    DisclosureGroup(
+                        isExpanded: self.recoveryBinding(for: .needsAttention)
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Accounts that still need refresh, reauthentication, or manual repair.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            ForEach(self.providersNeedingAttention) { summary in
+                                self.providerRecoveryCard(summary)
+                            }
+
+                            ForEach(self.trackedProfilesNeedingAttention) { item in
+                                self.trackedProfileRecoveryCard(item)
+                            }
+
+                            ForEach(self.automaticRecoveryIssues) { issue in
+                                self.automaticRecoveryCard(issue)
+                            }
+                        }
+                        .padding(.top, 6)
+                    } label: {
+                        self.recoveryGroupLabel(
                             title: "Needs Attention",
-                            detail: "Accounts that still need refresh, reauthentication, or manual repair.",
                             count: self.needsAttentionCount,
                             tint: .red
                         )
-
-                        ForEach(self.providersNeedingAttention) { summary in
-                            self.providerRecoveryCard(summary)
-                        }
-
-                        ForEach(self.trackedProfilesNeedingAttention) { item in
-                            self.trackedProfileRecoveryCard(item)
-                        }
-
-                        ForEach(self.automaticRecoveryIssues) { issue in
-                            self.automaticRecoveryCard(issue)
-                        }
                     }
                     .padding(.vertical, 4)
                 }
 
                 if !self.providerRestoreOptions.isEmpty || !self.trackedProfileRestoreOptions.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        self.recoveryGroupHeader(
+                    DisclosureGroup(
+                        isExpanded: self.recoveryBinding(for: .restoreOptions)
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Managed backups that QuotaPilot can restore immediately.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            ForEach(self.providerRestoreOptions) { summary in
+                                self.providerRestoreOptionCard(summary)
+                            }
+
+                            ForEach(self.trackedProfileRestoreOptions) { item in
+                                self.trackedProfileRestoreOptionCard(item)
+                            }
+                        }
+                        .padding(.top, 6)
+                    } label: {
+                        self.recoveryGroupLabel(
                             title: "Restore Options",
-                            detail: "Managed backups that QuotaPilot can restore immediately.",
                             count: self.restoreOptionsCount,
                             tint: .orange
                         )
-
-                        ForEach(self.providerRestoreOptions) { summary in
-                            self.providerRestoreOptionCard(summary)
-                        }
-
-                        ForEach(self.trackedProfileRestoreOptions) { item in
-                            self.trackedProfileRestoreOptionCard(item)
-                        }
                     }
                     .padding(.vertical, 4)
                 }
 
                 if !self.recentRecoveryEntries.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        self.recoveryGroupHeader(
+                    DisclosureGroup(
+                        isExpanded: self.recoveryBinding(for: .recentRecovery)
+                    ) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Recent managed backup restores recorded by QuotaPilot.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            ForEach(self.recentRecoveryEntries) { entry in
+                                self.recentRecoveryCard(entry)
+                            }
+                        }
+                        .padding(.top, 6)
+                    } label: {
+                        self.recoveryGroupLabel(
                             title: "Recent Recovery",
-                            detail: "Recent managed backup restores recorded by QuotaPilot.",
                             count: self.recentRecoveryCount,
                             tint: .green
                         )
-
-                        ForEach(self.recentRecoveryEntries) { entry in
-                            self.recentRecoveryCard(entry)
-                        }
                     }
                     .padding(.vertical, 4)
                 }
             }
         }
+        .task {
+            self.seedRecoveryGroupsIfNeeded()
+        }
+    }
+
+    private func recoveryBinding(for group: RecoveryGroup) -> Binding<Bool> {
+        Binding(
+            get: { self.expandedRecoveryGroups.contains(group) },
+            set: { isExpanded in
+                if isExpanded {
+                    self.expandedRecoveryGroups.insert(group)
+                } else {
+                    self.expandedRecoveryGroups.remove(group)
+                }
+            }
+        )
+    }
+
+    private func seedRecoveryGroupsIfNeeded() {
+        guard !self.didSeedRecoveryGroups else { return }
+        self.didSeedRecoveryGroups = true
+
+        let nonEmptyGroups = [
+            self.needsAttentionCount > 0 ? RecoveryGroup.needsAttention : nil,
+            self.restoreOptionsCount > 0 ? RecoveryGroup.restoreOptions : nil,
+            self.recentRecoveryCount > 0 ? RecoveryGroup.recentRecovery : nil,
+        ].compactMap { $0 }
+
+        if nonEmptyGroups.count == 1, let onlyGroup = nonEmptyGroups.first {
+            self.expandedRecoveryGroups = [onlyGroup]
+        } else {
+            self.expandedRecoveryGroups = []
+        }
     }
 
     @ViewBuilder
-    private func recoveryGroupHeader(title: String, detail: String, count: Int, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
+    private func recoveryGroupLabel(title: String, count: Int, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
 
-                Text("\(count)")
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(tint.opacity(0.14), in: Capsule())
-                    .foregroundStyle(tint)
-            }
-
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text("\(count)")
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(tint.opacity(0.14), in: Capsule())
+                .foregroundStyle(tint)
         }
     }
 
