@@ -16,6 +16,7 @@ final class AppModel {
     private let recommendationAlertNotifier: RecommendationAlertNotifying
     private let recommendationAlertSettingsStorage: RecommendationAlertSettingsStorage
     private let recommendationAlertStateStore: RecommendationAlertStateStore
+    private let switchActionModeStorage: SwitchActionModeStorage
     private let currentProfileSelectionStore: CurrentProfileSelectionStoring
     private let profileSourceStore: StoredProfileSourceStoring
     private let rulesStorage: GlobalRulesStorage
@@ -31,6 +32,7 @@ final class AppModel {
     var discoveredProfiles: [DiscoveredLocalProfile]
     var lastRecommendationAlertSummary: String?
     var recommendationAlertSettings: RecommendationAlertSettings
+    var switchActionMode: SwitchActionMode
     var storedProfileSources: [StoredProfileSource]
     var isActivatingProfile = false
     var isRefreshingUsage = false
@@ -51,6 +53,7 @@ final class AppModel {
         recommendationAlertNotifier: RecommendationAlertNotifying = UserNotificationRecommendationAlertNotifier(),
         recommendationAlertSettingsStorage: RecommendationAlertSettingsStorage = RecommendationAlertSettingsStorage(),
         recommendationAlertStateStore: RecommendationAlertStateStore = RecommendationAlertStateStore(),
+        switchActionModeStorage: SwitchActionModeStorage = SwitchActionModeStorage(),
         currentProfileSelectionStore: CurrentProfileSelectionStoring = FileCurrentProfileSelectionStore(),
         profileSourceStore: StoredProfileSourceStoring = FileStoredProfileSourceStore(),
         rulesStorage: GlobalRulesStorage = GlobalRulesStorage(),
@@ -65,6 +68,7 @@ final class AppModel {
         self.recommendationAlertNotifier = recommendationAlertNotifier
         self.recommendationAlertSettingsStorage = recommendationAlertSettingsStorage
         self.recommendationAlertStateStore = recommendationAlertStateStore
+        self.switchActionModeStorage = switchActionModeStorage
         self.currentProfileSelectionStore = currentProfileSelectionStore
         self.profileSourceStore = profileSourceStore
         self.rulesStorage = rulesStorage
@@ -84,6 +88,7 @@ final class AppModel {
         self.discoveredProfiles = discoveredProfiles
         self.lastRecommendationAlertSummary = nil
         self.recommendationAlertSettings = recommendationAlertSettingsStorage.load()
+        self.switchActionMode = switchActionModeStorage.load()
         self.storedProfileSources = storedSources
         self.rules = rules ?? rulesStorage.load()
         self.lastUsageRefreshSummary = discoveredProfiles.isEmpty
@@ -154,8 +159,19 @@ final class AppModel {
     func refreshLiveUsage() async {
         guard !self.isRefreshingUsage else { return }
         self.isRefreshingUsage = true
+        var pendingAutomaticActivations: [RecommendationActivationOption] = []
         self.refreshDiscoveredProfiles()
-        defer { self.isRefreshingUsage = false }
+        defer {
+            self.isRefreshingUsage = false
+            if !pendingAutomaticActivations.isEmpty {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    for option in pendingAutomaticActivations {
+                        await self.activateProfile(provider: option.provider, profileRootPath: option.profileRootPath)
+                    }
+                }
+            }
+        }
 
         guard !self.discoveredProfiles.isEmpty else {
             self.lastUsageRefreshSummary = "No local profiles found. Showing demo data."
@@ -180,7 +196,12 @@ final class AppModel {
         }
 
         self.persistWidgetSnapshot()
-        await self.syncRecommendationAlerts()
+        pendingAutomaticActivations = self.planAutomaticActivations()
+        if pendingAutomaticActivations.isEmpty {
+            await self.syncRecommendationAlerts()
+        } else {
+            self.lastProfileActionSummary = "Auto-activating \(pendingAutomaticActivations.count) recommended profile(s)."
+        }
     }
 
     func updateSwitchThreshold(_ value: Int) {
@@ -223,6 +244,11 @@ final class AppModel {
         } else {
             self.lastRecommendationAlertSummary = "Recommendation alerts will appear when a new switch suggestion is detected."
         }
+    }
+
+    func updateSwitchActionMode(_ mode: SwitchActionMode) {
+        self.switchActionMode = mode
+        self.switchActionModeStorage.save(mode)
     }
 
     func updateBackgroundRefreshEnabled(_ isEnabled: Bool) {
@@ -423,5 +449,37 @@ final class AppModel {
                 await self.refreshLiveUsage()
             }
         }
+    }
+
+    private func planAutomaticActivations() -> [RecommendationActivationOption] {
+        guard self.switchActionMode == .autoActivateLocalProfiles else { return [] }
+
+        let previousState = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
+        let candidatesByProvider = Dictionary(
+            uniqueKeysWithValues: RecommendationAlertPlanner
+                .makeCandidates(recommendations: self.providerRecommendations)
+                .map { ($0.provider, $0) }
+        )
+        var nextState = previousState
+        var options: [RecommendationActivationOption] = []
+
+        for recommendation in self.providerRecommendations {
+            guard let option = self.recommendationActivationOption(for: recommendation.provider),
+                  option.isActivatable,
+                  let candidate = candidatesByProvider[recommendation.provider],
+                  previousState[recommendation.provider] != candidate.identifier
+            else {
+                continue
+            }
+
+            nextState[recommendation.provider] = candidate.identifier
+            options.append(option)
+        }
+
+        if !options.isEmpty {
+            try? self.recommendationAlertStateStore.saveState(nextState)
+        }
+
+        return options
     }
 }

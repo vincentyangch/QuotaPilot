@@ -203,6 +203,23 @@ struct RulesSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Switch Behavior") {
+                Picker(
+                    "When a better account is available",
+                    selection: Binding(
+                        get: { self.model.switchActionMode },
+                        set: { self.model.updateSwitchActionMode($0) }
+                    )
+                ) {
+                    ForEach(SwitchActionMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+
+                Text(self.model.switchActionMode.summary)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Alerts") {
                 Toggle(
                     "Notify when a better account is available",
