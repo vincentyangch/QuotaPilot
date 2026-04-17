@@ -56,6 +56,20 @@ struct RulesSettingsView: View {
         Array(self.model.activityLogEntries.filter(\.isBackupRestore).prefix(3))
     }
 
+    private var needsAttentionCount: Int {
+        self.providersNeedingAttention.count
+            + self.trackedProfilesNeedingAttention.count
+            + self.automaticRecoveryIssues.count
+    }
+
+    private var restoreOptionsCount: Int {
+        self.providerRestoreOptions.count + self.trackedProfileRestoreOptions.count
+    }
+
+    private var recentRecoveryCount: Int {
+        self.recentRecoveryEntries.count
+    }
+
     private var recoveryCenterIsEmpty: Bool {
         self.providersNeedingAttention.isEmpty
             && self.providerRestoreOptions.isEmpty
@@ -109,7 +123,9 @@ struct RulesSettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         self.recoveryGroupHeader(
                             title: "Needs Attention",
-                            detail: "Accounts that still need refresh, reauthentication, or manual repair."
+                            detail: "Accounts that still need refresh, reauthentication, or manual repair.",
+                            count: self.needsAttentionCount,
+                            tint: .red
                         )
 
                         ForEach(self.providersNeedingAttention) { summary in
@@ -131,7 +147,9 @@ struct RulesSettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         self.recoveryGroupHeader(
                             title: "Restore Options",
-                            detail: "Managed backups that QuotaPilot can restore immediately."
+                            detail: "Managed backups that QuotaPilot can restore immediately.",
+                            count: self.restoreOptionsCount,
+                            tint: .orange
                         )
 
                         ForEach(self.providerRestoreOptions) { summary in
@@ -149,7 +167,9 @@ struct RulesSettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         self.recoveryGroupHeader(
                             title: "Recent Recovery",
-                            detail: "Recent managed backup restores recorded by QuotaPilot."
+                            detail: "Recent managed backup restores recorded by QuotaPilot.",
+                            count: self.recentRecoveryCount,
+                            tint: .green
                         )
 
                         ForEach(self.recentRecoveryEntries) { entry in
@@ -163,10 +183,20 @@ struct RulesSettingsView: View {
     }
 
     @ViewBuilder
-    private func recoveryGroupHeader(title: String, detail: String) -> some View {
+    private func recoveryGroupHeader(title: String, detail: String, count: Int, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+
+                Text("\(count)")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(tint.opacity(0.14), in: Capsule())
+                    .foregroundStyle(tint)
+            }
+
             Text(detail)
                 .font(.caption)
                 .foregroundStyle(.secondary)
