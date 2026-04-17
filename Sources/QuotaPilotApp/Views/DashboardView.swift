@@ -37,6 +37,8 @@ struct DashboardView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    ProviderHealthSectionView(summaries: self.model.providerHealthSummaries)
+
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         ForEach(self.model.providerRecommendations) { recommendation in
                             RecommendationCard(

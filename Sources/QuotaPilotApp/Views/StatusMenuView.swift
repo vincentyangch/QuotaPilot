@@ -21,6 +21,10 @@ struct StatusMenuView: View {
                 }
             }
 
+            Divider()
+
+            ProviderHealthSectionView(summaries: self.model.providerHealthSummaries)
+
             if !self.model.pendingSwitchConfirmations.isEmpty {
                 Divider()
 

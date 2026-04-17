@@ -33,6 +33,7 @@ final class AppModel {
     var backgroundRefreshSettings: BackgroundRefreshSettings
     var currentProfileSelections: [QuotaProvider: String]
     var discoveredProfiles: [DiscoveredLocalProfile]
+    var lastAmbientRefreshFailures: [AmbientUsageRefreshFailure]
     var lastRecommendationAlertSummary: String?
     var pendingSwitchConfirmations: [QuotaProvider: RecommendationActivationOption]
     var recommendationAlertSettings: RecommendationAlertSettings
@@ -97,6 +98,7 @@ final class AppModel {
         self.backgroundRefreshSettings = backgroundRefreshSettingsStorage.load()
         self.currentProfileSelections = currentSelections
         self.discoveredProfiles = discoveredProfiles
+        self.lastAmbientRefreshFailures = []
         self.lastRecommendationAlertSummary = nil
         self.pendingSwitchConfirmations = [:]
         self.recommendationAlertSettings = recommendationAlertSettingsStorage.load()
@@ -118,6 +120,14 @@ final class AppModel {
             discoveredProfiles: self.discoveredProfiles,
             liveAccounts: self.accounts,
             currentProfileRootPaths: self.resolvedCurrentProfilePaths
+        )
+    }
+
+    var providerHealthSummaries: [ProviderHealthSummary] {
+        ProviderHealthSummaryBuilder.makeSummaries(
+            discoveredProfiles: self.discoveredProfiles,
+            liveAccounts: self.accounts,
+            failures: self.lastAmbientRefreshFailures
         )
     }
 
@@ -148,6 +158,7 @@ final class AppModel {
 
     func reloadDemoData() {
         self.accounts = DemoAccountRepository.makeAccounts()
+        self.lastAmbientRefreshFailures = []
         self.lastUsageRefreshSummary = "Reloaded demo data."
         self.persistWidgetSnapshot()
         self.recordActivity(
@@ -211,6 +222,7 @@ final class AppModel {
         }
 
         guard !self.discoveredProfiles.isEmpty else {
+            self.lastAmbientRefreshFailures = []
             self.lastUsageRefreshSummary = "No local profiles found. Showing demo data."
             self.recordActivity(
                 kind: .refreshFailed,
@@ -225,6 +237,7 @@ final class AppModel {
             from: self.discoveredProfiles,
             currentProfileRootPaths: self.resolvedCurrentProfilePaths
         )
+        self.lastAmbientRefreshFailures = result.failures
 
         if !result.accounts.isEmpty {
             self.accounts = self.mergedAccounts(liveAccounts: result.accounts)

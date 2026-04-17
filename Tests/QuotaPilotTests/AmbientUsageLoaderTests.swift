@@ -238,7 +238,9 @@ final class AmbientUsageLoaderTests: XCTestCase {
         XCTAssertEqual(result.accounts.count, 1)
         XCTAssertEqual(result.accounts.first?.provider, .codex)
         XCTAssertEqual(result.failures.count, 1)
-        XCTAssertTrue(result.failures.first?.contains("Claude Max") == true)
+        XCTAssertEqual(result.failures.first?.provider, .claude)
+        XCTAssertEqual(result.failures.first?.profileLabel, "Claude Max")
+        XCTAssertEqual(result.failures.first?.kind, .requestFailed(statusCode: 401))
     }
 
     private func makeTemporaryDirectory(named name: String) throws -> URL {

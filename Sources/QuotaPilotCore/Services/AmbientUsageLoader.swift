@@ -3,11 +3,36 @@ import Foundation
 import FoundationNetworking
 #endif
 
+public enum AmbientUsageFailureKind: Equatable, Sendable {
+    case invalidCredentials
+    case requestFailed(statusCode: Int)
+    case unexpected
+}
+
+public struct AmbientUsageRefreshFailure: Equatable, Sendable {
+    public let provider: QuotaProvider
+    public let profileLabel: String
+    public let detail: String
+    public let kind: AmbientUsageFailureKind
+
+    public init(
+        provider: QuotaProvider,
+        profileLabel: String,
+        detail: String,
+        kind: AmbientUsageFailureKind
+    ) {
+        self.provider = provider
+        self.profileLabel = profileLabel
+        self.detail = detail
+        self.kind = kind
+    }
+}
+
 public struct AmbientUsageRefreshResult: Sendable {
     public let accounts: [QuotaAccount]
-    public let failures: [String]
+    public let failures: [AmbientUsageRefreshFailure]
 
-    public init(accounts: [QuotaAccount], failures: [String]) {
+    public init(accounts: [QuotaAccount], failures: [AmbientUsageRefreshFailure]) {
         self.accounts = accounts
         self.failures = failures
     }
@@ -46,7 +71,7 @@ public struct AmbientUsageLoader: Sendable {
         currentProfileRootPaths: [QuotaProvider: String] = [:]
     ) async -> AmbientUsageRefreshResult {
         var accounts: [QuotaAccount] = []
-        var failures: [String] = []
+        var failures: [AmbientUsageRefreshFailure] = []
 
         for profile in profiles {
             do {
@@ -57,7 +82,7 @@ public struct AmbientUsageLoader: Sendable {
                     accounts.append(account)
                 }
             } catch {
-                failures.append("\(profile.label): \(error.localizedDescription)")
+                failures.append(self.makeFailure(for: profile, error: error))
             }
         }
 
@@ -308,6 +333,37 @@ public struct AmbientUsageLoader: Sendable {
         guard let selectedPath = currentProfileRootPaths[profile.provider] else { return true }
         return profile.profileRootURL.standardizedFileURL.path
             == URL(fileURLWithPath: selectedPath, isDirectory: true).standardizedFileURL.path
+    }
+
+    private func makeFailure(
+        for profile: DiscoveredLocalProfile,
+        error: Error
+    ) -> AmbientUsageRefreshFailure {
+        if let loaderError = error as? LoaderError {
+            switch loaderError {
+            case .invalidCredentials:
+                return AmbientUsageRefreshFailure(
+                    provider: profile.provider,
+                    profileLabel: profile.label,
+                    detail: loaderError.localizedDescription,
+                    kind: .invalidCredentials
+                )
+            case let .requestFailed(_, statusCode):
+                return AmbientUsageRefreshFailure(
+                    provider: profile.provider,
+                    profileLabel: profile.label,
+                    detail: loaderError.localizedDescription,
+                    kind: .requestFailed(statusCode: statusCode)
+                )
+            }
+        }
+
+        return AmbientUsageRefreshFailure(
+            provider: profile.provider,
+            profileLabel: profile.label,
+            detail: "\(profile.label): \(error.localizedDescription)",
+            kind: .unexpected
+        )
     }
 }
 
