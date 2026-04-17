@@ -35,6 +35,14 @@ public enum TrackedProfileInventoryBuilder {
                 sourceKind: effectiveSourceKind,
                 ownershipMode: effectiveOwnershipMode
             )
+            let recoveryBackupCandidate = self.recoveryBackupCandidate(
+                for: profile,
+                lifecycleState: lifecycleStatus.state,
+                discoveredProfiles: discoveredProfiles,
+                liveAccounts: liveAccounts,
+                failures: failures,
+                currentProfileRootPaths: currentProfileRootPaths
+            )
 
             return TrackedProfileInventoryItem(
                 provider: profile.provider,
@@ -65,9 +73,58 @@ public enum TrackedProfileInventoryBuilder {
                 capabilitySummary: capabilitySummary,
                 lastRefreshSummary: lastRefreshSummary,
                 lastErrorDetail: matchingFailure?.detail,
-                statusSummary: statusSummary
+                statusSummary: statusSummary,
+                recoveryActionTargetProfileRootPath: recoveryBackupCandidate?.profileRootURL.standardizedFileURL.path,
+                recoveryActionBackupLabel: recoveryBackupCandidate?.label
             )
         }
+    }
+
+    private static func recoveryBackupCandidate(
+        for profile: DiscoveredLocalProfile,
+        lifecycleState: TrackedProfileLifecycleState,
+        discoveredProfiles: [DiscoveredLocalProfile],
+        liveAccounts: [QuotaAccount],
+        failures: [AmbientUsageRefreshFailure],
+        currentProfileRootPaths: [QuotaProvider: String]
+    ) -> DiscoveredLocalProfile? {
+        guard currentProfileRootPaths[profile.provider] == profile.profileRootURL.standardizedFileURL.path else {
+            return nil
+        }
+
+        switch lifecycleState {
+        case .credentialsMissing, .authExpired, .sessionUnavailable, .usageReadFailed:
+            break
+        case .awaitingRefresh, .ready:
+            return nil
+        }
+
+        return discoveredProfiles
+            .filter { candidate in
+                candidate.provider == profile.provider
+                    && candidate.sourceKind == .backup
+                    && candidate.ownershipMode == .quotaPilotManaged
+                    && candidate.profileRootURL.standardizedFileURL.path != profile.profileRootURL.standardizedFileURL.path
+                    && !failures.contains(where: {
+                        $0.provider == candidate.provider
+                            && $0.profileRootPath == candidate.profileRootURL.standardizedFileURL.path
+                    })
+            }
+            .sorted { lhs, rhs in
+                let lhsHasLiveUsage = liveAccounts.contains {
+                    $0.provider == lhs.provider
+                        && $0.profileRootPath == lhs.profileRootURL.standardizedFileURL.path
+                }
+                let rhsHasLiveUsage = liveAccounts.contains {
+                    $0.provider == rhs.provider
+                        && $0.profileRootPath == rhs.profileRootURL.standardizedFileURL.path
+                }
+                if lhsHasLiveUsage != rhsHasLiveUsage {
+                    return lhsHasLiveUsage && !rhsHasLiveUsage
+                }
+                return lhs.label < rhs.label
+            }
+            .first
     }
 
     private static func identitySummary(

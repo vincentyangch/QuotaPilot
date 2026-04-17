@@ -3,6 +3,7 @@ import Foundation
 public enum TrackedProfileRecoveryActionKind: Equatable, Sendable {
     case refreshUsage
     case openSettings
+    case restoreManagedBackup
 }
 
 public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
@@ -27,6 +28,58 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
     public let lastRefreshSummary: String?
     public let lastErrorDetail: String?
     public let statusSummary: String
+    public let recoveryActionTargetProfileRootPath: String?
+    public let recoveryActionBackupLabel: String?
+
+    public init(
+        provider: QuotaProvider,
+        label: String,
+        email: String?,
+        plan: String?,
+        identitySummary: String?,
+        profileRootPath: String,
+        sourceDescription: String,
+        sourceKind: ProfileSourceKind,
+        ownershipMode: ProfileOwnershipMode,
+        sourceSummary: String,
+        isCurrentSelection: Bool,
+        hasLiveUsage: Bool,
+        liveRemainingPercent: Int?,
+        lifecycleState: TrackedProfileLifecycleState,
+        lifecycleTitle: String,
+        lifecycleDetail: String?,
+        lifecycleNextAction: String,
+        capabilitySummary: String,
+        lastRefreshSummary: String?,
+        lastErrorDetail: String?,
+        statusSummary: String,
+        recoveryActionTargetProfileRootPath: String? = nil,
+        recoveryActionBackupLabel: String? = nil
+    ) {
+        self.provider = provider
+        self.label = label
+        self.email = email
+        self.plan = plan
+        self.identitySummary = identitySummary
+        self.profileRootPath = profileRootPath
+        self.sourceDescription = sourceDescription
+        self.sourceKind = sourceKind
+        self.ownershipMode = ownershipMode
+        self.sourceSummary = sourceSummary
+        self.isCurrentSelection = isCurrentSelection
+        self.hasLiveUsage = hasLiveUsage
+        self.liveRemainingPercent = liveRemainingPercent
+        self.lifecycleState = lifecycleState
+        self.lifecycleTitle = lifecycleTitle
+        self.lifecycleDetail = lifecycleDetail
+        self.lifecycleNextAction = lifecycleNextAction
+        self.capabilitySummary = capabilitySummary
+        self.lastRefreshSummary = lastRefreshSummary
+        self.lastErrorDetail = lastErrorDetail
+        self.statusSummary = statusSummary
+        self.recoveryActionTargetProfileRootPath = recoveryActionTargetProfileRootPath
+        self.recoveryActionBackupLabel = recoveryActionBackupLabel
+    }
 
     public var id: String {
         "\(self.provider.rawValue):\(self.profileRootPath)"
@@ -52,6 +105,10 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
     }
 
     public var recoveryActionKind: TrackedProfileRecoveryActionKind? {
+        if self.recoveryActionTargetProfileRootPath != nil {
+            return .restoreManagedBackup
+        }
+
         if self.lastErrorDetail != nil {
             return .refreshUsage
         }
@@ -67,6 +124,10 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
     }
 
     public var recoveryActionTitle: String? {
+        if let recoveryActionBackupLabel = self.recoveryActionBackupLabel {
+            return "Restore \(recoveryActionBackupLabel)"
+        }
+
         if self.lastErrorDetail != nil {
             return "Retry Refresh"
         }

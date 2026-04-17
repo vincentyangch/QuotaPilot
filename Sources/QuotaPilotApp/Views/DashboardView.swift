@@ -137,6 +137,14 @@ struct DashboardView: View {
                                 profileRootPath: item.profileRootPath
                             )
                         }
+                    } onRestoreManagedBackup: { item in
+                        guard let recoveryActionTargetProfileRootPath = item.recoveryActionTargetProfileRootPath else { return }
+                        Task {
+                            await self.model.activateProfile(
+                                provider: item.provider,
+                                profileRootPath: recoveryActionTargetProfileRootPath
+                            )
+                        }
                     } onDelete: { item in
                         self.model.removeTrackedProfileItem(item)
                     }

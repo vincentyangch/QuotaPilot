@@ -7,6 +7,7 @@ struct TrackedProfileInventorySectionView: View {
     let items: [TrackedProfileInventoryItem]
     let onRefreshUsage: () -> Void
     let onActivate: (TrackedProfileInventoryItem) -> Void
+    let onRestoreManagedBackup: (TrackedProfileInventoryItem) -> Void
     let onDelete: (TrackedProfileInventoryItem) -> Void
 
     @State private var pendingDeletionItem: TrackedProfileInventoryItem?
@@ -104,6 +105,11 @@ struct TrackedProfileInventorySectionView: View {
                                     SettingsLink {
                                         Text(recoveryActionTitle)
                                     }
+                                case .restoreManagedBackup:
+                                    Button(self.isActivatingProfile ? "Activating..." : recoveryActionTitle) {
+                                        self.onRestoreManagedBackup(item)
+                                    }
+                                    .disabled(self.isActivatingProfile)
                                 }
                             }
 

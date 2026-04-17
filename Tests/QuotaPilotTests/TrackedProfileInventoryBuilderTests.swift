@@ -153,4 +153,54 @@ final class TrackedProfileInventoryBuilderTests: XCTestCase {
         XCTAssertEqual(item?.lifecycleTitle, "Auth Expired")
         XCTAssertEqual(item?.capabilitySummary, "Desktop Handoff")
     }
+
+    func testSuggestsManagedBackupRestoreForBrokenCurrentProfile() {
+        let discoveredProfiles = [
+            DiscoveredLocalProfile(
+                provider: .codex,
+                label: "Codex Current",
+                email: nil,
+                plan: "pro",
+                profileRootURL: URL(fileURLWithPath: "/Users/tester/.codex", isDirectory: true),
+                credentialsURL: URL(fileURLWithPath: "/Users/tester/.codex/auth.json"),
+                sourceDescription: "Ambient profile",
+                sourceKind: .ambient,
+                ownershipMode: .externalLocal
+            ),
+            DiscoveredLocalProfile(
+                provider: .codex,
+                label: "Codex Ambient Backup",
+                email: nil,
+                plan: "pro",
+                profileRootURL: URL(fileURLWithPath: "/Users/tester/Library/Application Support/QuotaPilot/profile-backups/codex/ambient-backup", isDirectory: true),
+                credentialsURL: URL(fileURLWithPath: "/Users/tester/Library/Application Support/QuotaPilot/profile-backups/codex/ambient-backup/auth.json"),
+                sourceDescription: "QuotaPilot backup profile",
+                sourceKind: .backup,
+                ownershipMode: .quotaPilotManaged
+            ),
+        ]
+
+        let items = TrackedProfileInventoryBuilder.makeItems(
+            discoveredProfiles: discoveredProfiles,
+            liveAccounts: [],
+            failures: [
+                AmbientUsageRefreshFailure(
+                    provider: .codex,
+                    profileLabel: "Codex Current",
+                    profileRootPath: "/Users/tester/.codex",
+                    detail: "Codex usage request failed with HTTP 401.",
+                    kind: .requestFailed(statusCode: 401)
+                )
+            ],
+            currentProfileRootPaths: [.codex: "/Users/tester/.codex"]
+        )
+
+        let currentItem = items.first(where: { $0.profileRootPath == "/Users/tester/.codex" })
+        XCTAssertEqual(currentItem?.recoveryActionKind, .restoreManagedBackup)
+        XCTAssertEqual(currentItem?.recoveryActionTitle, "Restore Codex Ambient Backup")
+        XCTAssertEqual(
+            currentItem?.recoveryActionTargetProfileRootPath,
+            "/Users/tester/Library/Application Support/QuotaPilot/profile-backups/codex/ambient-backup"
+        )
+    }
 }
