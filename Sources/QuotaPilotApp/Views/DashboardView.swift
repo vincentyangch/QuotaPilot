@@ -24,6 +24,24 @@ struct LiveAccountsEmptyStateView: View {
     }
 }
 
+struct StaleAccountsWarningView: View {
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+
+            Text(self.detail)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
 struct DashboardView: View {
     let model: AppModel
 
@@ -72,6 +90,10 @@ struct DashboardView: View {
                             title: self.model.liveAccountsEmptyStateTitle,
                             detail: self.model.liveAccountsEmptyStateDetail
                         )
+                    }
+
+                    if self.model.isShowingStaleAccounts {
+                        StaleAccountsWarningView(detail: self.model.staleAccountsWarningText)
                     }
 
                     ProviderHealthSectionView(summaries: self.model.providerHealthSummaries)

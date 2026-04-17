@@ -41,6 +41,7 @@ final class AppModel {
     var storedProfileSources: [StoredProfileSource]
     var isActivatingProfile = false
     var isRefreshingUsage = false
+    var isShowingStaleAccounts = false
     var lastProfileActionSummary: String?
     var lastUsageRefreshSummary: String
     var rules: GlobalRules {
@@ -168,6 +169,10 @@ final class AppModel {
         return "QuotaPilot found local profiles, but it has not loaded live usage yet. Refresh usage or review provider health below."
     }
 
+    var staleAccountsWarningText: String {
+        "QuotaPilot could not refresh live usage and is showing the last successful account snapshot."
+    }
+
     func recommendation(for provider: QuotaProvider) -> RecommendationEngine.ProviderRecommendation? {
         self.providerRecommendations.first(where: { $0.provider == provider })
     }
@@ -226,6 +231,7 @@ final class AppModel {
 
         guard !self.discoveredProfiles.isEmpty else {
             self.accounts = []
+            self.isShowingStaleAccounts = false
             self.lastAmbientRefreshFailures = []
             self.pendingSwitchConfirmations = [:]
             self.automaticActivationRecoveryIssues = [:]
@@ -243,10 +249,14 @@ final class AppModel {
         if !result.accounts.isEmpty {
             self.accounts = self.mergedAccounts(liveAccounts: result.accounts)
             self.reconcileAutomaticActivationRecoveryIssues(refreshedAccounts: result.accounts)
+            self.isShowingStaleAccounts = false
         }
 
         if result.accounts.isEmpty {
-            self.lastUsageRefreshSummary = "Could not load live usage from local profiles."
+            self.isShowingStaleAccounts = !self.accounts.isEmpty
+            self.lastUsageRefreshSummary = self.isShowingStaleAccounts
+                ? self.staleAccountsWarningText
+                : "Could not load live usage from local profiles."
             self.recordActivity(
                 kind: .refreshFailed,
                 provider: nil,

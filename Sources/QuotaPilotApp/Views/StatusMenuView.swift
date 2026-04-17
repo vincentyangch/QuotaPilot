@@ -28,6 +28,10 @@ struct StatusMenuView: View {
                 }
             }
 
+            if self.model.isShowingStaleAccounts {
+                StaleAccountsWarningView(detail: self.model.staleAccountsWarningText)
+            }
+
             Divider()
 
             ProviderHealthSectionView(summaries: self.model.providerHealthSummaries)
