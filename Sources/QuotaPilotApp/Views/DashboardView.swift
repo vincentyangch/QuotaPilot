@@ -123,9 +123,14 @@ struct DashboardView: View {
                     }
 
                     TrackedProfileInventorySectionView(
+                        isRefreshingUsage: self.model.isRefreshingUsage,
                         isActivatingProfile: self.model.isActivatingProfile,
                         items: self.model.trackedProfileInventoryItems
-                    ) { item in
+                    ) {
+                        Task {
+                            await self.model.refreshLiveUsage()
+                        }
+                    } onActivate: { item in
                         Task {
                             await self.model.activateProfile(
                                 provider: item.provider,

@@ -1,5 +1,10 @@
 import Foundation
 
+public enum TrackedProfileRecoveryActionKind: Equatable, Sendable {
+    case refreshUsage
+    case openSettings
+}
+
 public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
     public let provider: QuotaProvider
     public let label: String
@@ -39,5 +44,29 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
 
     public var deletionConfirmationDetail: String {
         "QuotaPilot will permanently delete \(self.label) from its managed backup storage."
+    }
+
+    public var recoveryActionKind: TrackedProfileRecoveryActionKind? {
+        switch self.lifecycleState {
+        case .ready:
+            nil
+        case .awaitingRefresh, .authExpired, .sessionUnavailable, .usageReadFailed:
+            .refreshUsage
+        case .credentialsMissing:
+            .openSettings
+        }
+    }
+
+    public var recoveryActionTitle: String? {
+        switch self.lifecycleState {
+        case .awaitingRefresh:
+            "Refresh Usage"
+        case .authExpired, .sessionUnavailable, .usageReadFailed:
+            "Retry Refresh"
+        case .credentialsMissing:
+            "Open Settings"
+        case .ready:
+            nil
+        }
     }
 }

@@ -122,4 +122,48 @@ final class ProfileActionLabelTests: XCTestCase {
         XCTAssertEqual(discovered.activationActionTitle, "Activate")
         XCTAssertEqual(item.activationActionTitle, "Activate")
     }
+
+    func testTrackedProfileRecoveryActionsMatchLifecycleState() {
+        let awaitingRefresh = self.makeTrackedItem(lifecycleState: .awaitingRefresh)
+        XCTAssertEqual(awaitingRefresh.recoveryActionKind, .refreshUsage)
+        XCTAssertEqual(awaitingRefresh.recoveryActionTitle, "Refresh Usage")
+
+        let authExpired = self.makeTrackedItem(lifecycleState: .authExpired)
+        XCTAssertEqual(authExpired.recoveryActionKind, .refreshUsage)
+        XCTAssertEqual(authExpired.recoveryActionTitle, "Retry Refresh")
+
+        let credentialsMissing = self.makeTrackedItem(lifecycleState: .credentialsMissing)
+        XCTAssertEqual(credentialsMissing.recoveryActionKind, .openSettings)
+        XCTAssertEqual(credentialsMissing.recoveryActionTitle, "Open Settings")
+
+        let ready = self.makeTrackedItem(lifecycleState: .ready)
+        XCTAssertNil(ready.recoveryActionKind)
+        XCTAssertNil(ready.recoveryActionTitle)
+    }
+
+    private func makeTrackedItem(lifecycleState: TrackedProfileLifecycleState) -> TrackedProfileInventoryItem {
+        TrackedProfileInventoryItem(
+            provider: .codex,
+            label: "Codex Work",
+            email: nil,
+            plan: nil,
+            identitySummary: nil,
+            profileRootPath: "/tmp/codex-work",
+            sourceDescription: "Stored profile source",
+            sourceKind: .stored,
+            ownershipMode: .externalLocal,
+            sourceSummary: "Stored • External",
+            isCurrentSelection: true,
+            hasLiveUsage: lifecycleState == .ready,
+            liveRemainingPercent: lifecycleState == .ready ? 80 : nil,
+            lifecycleState: lifecycleState,
+            lifecycleTitle: "Lifecycle",
+            lifecycleDetail: nil,
+            lifecycleNextAction: "Next action",
+            capabilitySummary: "Desktop Handoff",
+            lastRefreshSummary: nil,
+            lastErrorDetail: nil,
+            statusSummary: "Status"
+        )
+    }
 }

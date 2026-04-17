@@ -2,8 +2,10 @@ import SwiftUI
 import QuotaPilotCore
 
 struct TrackedProfileInventorySectionView: View {
+    let isRefreshingUsage: Bool
     let isActivatingProfile: Bool
     let items: [TrackedProfileInventoryItem]
+    let onRefreshUsage: () -> Void
     let onActivate: (TrackedProfileInventoryItem) -> Void
     let onDelete: (TrackedProfileInventoryItem) -> Void
 
@@ -76,6 +78,22 @@ struct TrackedProfileInventorySectionView: View {
                             Text(item.lifecycleNextAction)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
+
+                            if let recoveryActionKind = item.recoveryActionKind,
+                               let recoveryActionTitle = item.recoveryActionTitle
+                            {
+                                switch recoveryActionKind {
+                                case .refreshUsage:
+                                    Button(self.isRefreshingUsage ? "Refreshing..." : recoveryActionTitle) {
+                                        self.onRefreshUsage()
+                                    }
+                                    .disabled(self.isRefreshingUsage)
+                                case .openSettings:
+                                    SettingsLink {
+                                        Text(recoveryActionTitle)
+                                    }
+                                }
+                            }
 
                             Text(item.profileRootPath)
                                 .font(.caption2.monospaced())
