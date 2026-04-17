@@ -86,7 +86,7 @@ struct TrackedProfileInventorySectionView: View {
                         Spacer()
 
                         if !item.isCurrentSelection {
-                            Button(self.isActivatingProfile ? "Activating..." : "Activate") {
+                            Button(self.isActivatingProfile ? "Activating..." : item.activationActionTitle) {
                                 self.onActivate(item)
                             }
                             .disabled(self.isActivatingProfile)

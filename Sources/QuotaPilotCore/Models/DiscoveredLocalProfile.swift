@@ -59,4 +59,10 @@ public struct DiscoveredLocalProfile: Identifiable, Equatable, Sendable {
     public var sourceSummary: String {
         "\(self.sourceKind.displayLabel) • \(self.ownershipMode.displayLabel)"
     }
+
+    public var activationActionTitle: String {
+        self.sourceKind == .backup && self.ownershipMode == .quotaPilotManaged
+            ? "Restore Backup"
+            : "Activate"
+    }
 }

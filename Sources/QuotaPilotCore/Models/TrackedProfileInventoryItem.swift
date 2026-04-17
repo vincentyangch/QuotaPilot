@@ -26,4 +26,10 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
     public var id: String {
         "\(self.provider.rawValue):\(self.profileRootPath)"
     }
+
+    public var activationActionTitle: String {
+        self.sourceKind == .backup && self.ownershipMode == .quotaPilotManaged
+            ? "Restore Backup"
+            : "Activate"
+    }
 }

@@ -49,7 +49,7 @@ struct RulesSettingsView: View {
                                     .font(.caption.weight(.medium))
                                     .foregroundStyle(.secondary)
                             }
-                            Button(self.model.isActivatingProfile ? "Activating..." : "Activate") {
+                            Button(self.model.isActivatingProfile ? "Activating..." : profile.activationActionTitle) {
                                 Task {
                                     await self.model.activateProfile(profile)
                                 }
@@ -113,7 +113,7 @@ struct RulesSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("Remove") {
+                        Button(source.removalActionTitle) {
                             self.model.removeStoredProfileSource(id: source.id)
                         }
                     }

@@ -37,6 +37,12 @@ public struct StoredProfileSource: Identifiable, Codable, Equatable, Sendable {
     public var sourceSummary: String {
         "\(self.sourceKind.displayLabel) • \(self.ownershipMode.displayLabel)"
     }
+
+    public var removalActionTitle: String {
+        self.sourceKind == .backup && self.ownershipMode == .quotaPilotManaged
+            ? "Delete Backup"
+            : "Remove"
+    }
 }
 
 extension StoredProfileSource {
