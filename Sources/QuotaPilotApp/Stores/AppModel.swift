@@ -10,6 +10,7 @@ import WidgetKit
 final class AppModel {
     private let engine = RecommendationEngine()
     private let ambientUsageLoader: AmbientUsageLoader
+    private let backgroundRefreshSettingsStorage: BackgroundRefreshSettingsStorage
     private let profileActivator: LocalProfileActivator
     private let profileDiscovery: LocalProfileDiscovery
     private let recommendationAlertNotifier: RecommendationAlertNotifying
@@ -19,10 +20,13 @@ final class AppModel {
     private let profileSourceStore: StoredProfileSourceStoring
     private let rulesStorage: GlobalRulesStorage
     private let widgetSnapshotStore: QuotaPilotWidgetSnapshotStore
+    private var backgroundRefreshTask: Task<Void, Never>?
     private var didAttemptInitialRefresh = false
+    private var didStartAppServices = false
     private let homeURL: URL
 
     var accounts: [QuotaAccount]
+    var backgroundRefreshSettings: BackgroundRefreshSettings
     var currentProfileSelections: [QuotaProvider: String]
     var discoveredProfiles: [DiscoveredLocalProfile]
     var lastRecommendationAlertSummary: String?
@@ -41,6 +45,7 @@ final class AppModel {
     init(
         accounts: [QuotaAccount] = DemoAccountRepository.makeAccounts(),
         ambientUsageLoader: AmbientUsageLoader = AmbientUsageLoader(),
+        backgroundRefreshSettingsStorage: BackgroundRefreshSettingsStorage = BackgroundRefreshSettingsStorage(),
         profileActivator: LocalProfileActivator = LocalProfileActivator(),
         profileDiscovery: LocalProfileDiscovery = LocalProfileDiscovery(),
         recommendationAlertNotifier: RecommendationAlertNotifying = UserNotificationRecommendationAlertNotifier(),
@@ -54,6 +59,7 @@ final class AppModel {
         rules: GlobalRules? = nil
     ) {
         self.ambientUsageLoader = ambientUsageLoader
+        self.backgroundRefreshSettingsStorage = backgroundRefreshSettingsStorage
         self.profileActivator = profileActivator
         self.profileDiscovery = profileDiscovery
         self.recommendationAlertNotifier = recommendationAlertNotifier
@@ -73,6 +79,7 @@ final class AppModel {
         )
         let discoveredProfiles = profileDiscovery.discover(candidates: candidates)
         self.accounts = accounts
+        self.backgroundRefreshSettings = backgroundRefreshSettingsStorage.load()
         self.currentProfileSelections = currentSelections
         self.discoveredProfiles = discoveredProfiles
         self.lastRecommendationAlertSummary = nil
@@ -137,7 +144,15 @@ final class AppModel {
         await self.refreshLiveUsage()
     }
 
+    func startAppServicesIfNeeded() async {
+        guard !self.didStartAppServices else { return }
+        self.didStartAppServices = true
+        await self.performInitialLiveRefreshIfNeeded()
+        self.rebuildBackgroundRefreshLoop()
+    }
+
     func refreshLiveUsage() async {
+        guard !self.isRefreshingUsage else { return }
         self.isRefreshingUsage = true
         self.refreshDiscoveredProfiles()
         defer { self.isRefreshingUsage = false }
@@ -208,6 +223,24 @@ final class AppModel {
         } else {
             self.lastRecommendationAlertSummary = "Recommendation alerts will appear when a new switch suggestion is detected."
         }
+    }
+
+    func updateBackgroundRefreshEnabled(_ isEnabled: Bool) {
+        self.backgroundRefreshSettings = BackgroundRefreshSettings(
+            isEnabled: isEnabled,
+            intervalMinutes: self.backgroundRefreshSettings.intervalMinutes
+        )
+        self.backgroundRefreshSettingsStorage.save(self.backgroundRefreshSettings)
+        self.rebuildBackgroundRefreshLoop()
+    }
+
+    func updateBackgroundRefreshInterval(_ minutes: Int) {
+        self.backgroundRefreshSettings = BackgroundRefreshSettings(
+            isEnabled: self.backgroundRefreshSettings.isEnabled,
+            intervalMinutes: minutes
+        )
+        self.backgroundRefreshSettingsStorage.save(self.backgroundRefreshSettings)
+        self.rebuildBackgroundRefreshLoop()
     }
 
     func addStoredProfileSource(
@@ -368,6 +401,27 @@ final class AppModel {
             self.lastRecommendationAlertSummary = "No new recommendation alerts were sent."
         } else {
             self.lastRecommendationAlertSummary = "Sent recommendation alert for \(deliveredProviders.joined(separator: ", "))."
+        }
+    }
+
+    private func rebuildBackgroundRefreshLoop() {
+        self.backgroundRefreshTask?.cancel()
+        self.backgroundRefreshTask = nil
+
+        guard self.backgroundRefreshSettings.isEnabled else { return }
+
+        let intervalNanoseconds = UInt64(self.backgroundRefreshSettings.intervalMinutes) * 60 * 1_000_000_000
+        self.backgroundRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: intervalNanoseconds)
+                } catch {
+                    return
+                }
+
+                guard let self else { return }
+                await self.refreshLiveUsage()
+            }
         }
     }
 }

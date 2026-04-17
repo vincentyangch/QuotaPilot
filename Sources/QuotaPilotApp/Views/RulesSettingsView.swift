@@ -221,6 +221,29 @@ struct RulesSettingsView: View {
                 }
             }
 
+            Section("Background Refresh") {
+                Toggle(
+                    "Refresh local usage automatically",
+                    isOn: Binding(
+                        get: { self.model.backgroundRefreshSettings.isEnabled },
+                        set: { self.model.updateBackgroundRefreshEnabled($0) }
+                    )
+                )
+
+                Stepper(
+                    "Refresh every \(self.model.backgroundRefreshSettings.intervalMinutes) minutes",
+                    value: Binding(
+                        get: { self.model.backgroundRefreshSettings.intervalMinutes },
+                        set: { self.model.updateBackgroundRefreshInterval($0) }
+                    ),
+                    in: 1...60
+                )
+                .disabled(!self.model.backgroundRefreshSettings.isEnabled)
+
+                Text("While QuotaPilot is running, background refresh keeps the widget, recommendations, and alerts up to date without opening the dashboard.")
+                    .foregroundStyle(.secondary)
+            }
+
             self.discoveredProfilesSection
             self.storedSourcesSection
 

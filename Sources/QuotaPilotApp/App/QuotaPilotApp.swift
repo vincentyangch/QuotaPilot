@@ -6,6 +6,12 @@ struct QuotaPilotApp: App {
     @NSApplicationDelegateAdaptor(QuotaPilotAppDelegate.self) private var appDelegate
 
     var body: some Scene {
+        let _ = self.appDelegate.registerOnDidFinishLaunching {
+            Task {
+                await self.model.startAppServicesIfNeeded()
+            }
+        }
+
         WindowGroup("QuotaPilot", id: "dashboard") {
             DashboardView(model: self.model)
                 .frame(minWidth: 960, minHeight: 600)
