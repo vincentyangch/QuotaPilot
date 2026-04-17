@@ -1,0 +1,75 @@
+name: QuotaPilot
+options:
+  minimumXcodeGenVersion: 2.39.0
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    PRODUCT_NAME: "$(TARGET_NAME)"
+targets:
+  QuotaPilotCore:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Sources/QuotaPilotCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vincentyangch.QuotaPilot.core
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+
+  QuotaPilot:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/QuotaPilotApp
+    info:
+      path: Config/QuotaPilot-Info.plist
+    dependencies:
+      - target: QuotaPilotCore
+      - target: QuotaPilotWidgetExtension
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vincentyangch.QuotaPilot
+        CODE_SIGNING_ALLOWED: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+
+  QuotaPilotWidgetExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Sources/QuotaPilotWidget
+    info:
+      path: Config/QuotaPilotWidget-Info.plist
+    dependencies:
+      - target: QuotaPilotCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vincentyangch.QuotaPilot.widget
+        CODE_SIGNING_ALLOWED: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+
+  QuotaPilotTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/QuotaPilotTests
+    dependencies:
+      - target: QuotaPilotCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+
+schemes:
+  QuotaPilot:
+    build:
+      targets:
+        QuotaPilotCore: all
+        QuotaPilot: all
+        QuotaPilotWidgetExtension: all
+        QuotaPilotTests: [test]
+    test:
+      targets:
+        - name: QuotaPilotTests
