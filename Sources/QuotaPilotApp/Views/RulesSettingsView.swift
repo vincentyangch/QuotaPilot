@@ -203,6 +203,24 @@ struct RulesSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Alerts") {
+                Toggle(
+                    "Notify when a better account is available",
+                    isOn: Binding(
+                        get: { self.model.recommendationAlertSettings.isEnabled },
+                        set: { self.model.updateRecommendationAlertsEnabled($0) }
+                    )
+                )
+
+                Text("QuotaPilot sends a macOS notification only when it detects a new switch suggestion, so refreshes do not spam repeated alerts.")
+                    .foregroundStyle(.secondary)
+
+                if let lastRecommendationAlertSummary = self.model.lastRecommendationAlertSummary {
+                    Text(lastRecommendationAlertSummary)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             self.discoveredProfilesSection
             self.storedSourcesSection
 

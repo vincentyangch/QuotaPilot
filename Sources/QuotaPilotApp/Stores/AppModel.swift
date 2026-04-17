@@ -12,6 +12,9 @@ final class AppModel {
     private let ambientUsageLoader: AmbientUsageLoader
     private let profileActivator: LocalProfileActivator
     private let profileDiscovery: LocalProfileDiscovery
+    private let recommendationAlertNotifier: RecommendationAlertNotifying
+    private let recommendationAlertSettingsStorage: RecommendationAlertSettingsStorage
+    private let recommendationAlertStateStore: RecommendationAlertStateStore
     private let currentProfileSelectionStore: CurrentProfileSelectionStoring
     private let profileSourceStore: StoredProfileSourceStoring
     private let rulesStorage: GlobalRulesStorage
@@ -22,6 +25,8 @@ final class AppModel {
     var accounts: [QuotaAccount]
     var currentProfileSelections: [QuotaProvider: String]
     var discoveredProfiles: [DiscoveredLocalProfile]
+    var lastRecommendationAlertSummary: String?
+    var recommendationAlertSettings: RecommendationAlertSettings
     var storedProfileSources: [StoredProfileSource]
     var isActivatingProfile = false
     var isRefreshingUsage = false
@@ -38,6 +43,9 @@ final class AppModel {
         ambientUsageLoader: AmbientUsageLoader = AmbientUsageLoader(),
         profileActivator: LocalProfileActivator = LocalProfileActivator(),
         profileDiscovery: LocalProfileDiscovery = LocalProfileDiscovery(),
+        recommendationAlertNotifier: RecommendationAlertNotifying = UserNotificationRecommendationAlertNotifier(),
+        recommendationAlertSettingsStorage: RecommendationAlertSettingsStorage = RecommendationAlertSettingsStorage(),
+        recommendationAlertStateStore: RecommendationAlertStateStore = RecommendationAlertStateStore(),
         currentProfileSelectionStore: CurrentProfileSelectionStoring = FileCurrentProfileSelectionStore(),
         profileSourceStore: StoredProfileSourceStoring = FileStoredProfileSourceStore(),
         rulesStorage: GlobalRulesStorage = GlobalRulesStorage(),
@@ -48,6 +56,9 @@ final class AppModel {
         self.ambientUsageLoader = ambientUsageLoader
         self.profileActivator = profileActivator
         self.profileDiscovery = profileDiscovery
+        self.recommendationAlertNotifier = recommendationAlertNotifier
+        self.recommendationAlertSettingsStorage = recommendationAlertSettingsStorage
+        self.recommendationAlertStateStore = recommendationAlertStateStore
         self.currentProfileSelectionStore = currentProfileSelectionStore
         self.profileSourceStore = profileSourceStore
         self.rulesStorage = rulesStorage
@@ -64,6 +75,8 @@ final class AppModel {
         self.accounts = accounts
         self.currentProfileSelections = currentSelections
         self.discoveredProfiles = discoveredProfiles
+        self.lastRecommendationAlertSummary = nil
+        self.recommendationAlertSettings = recommendationAlertSettingsStorage.load()
         self.storedProfileSources = storedSources
         self.rules = rules ?? rulesStorage.load()
         self.lastUsageRefreshSummary = discoveredProfiles.isEmpty
@@ -152,6 +165,7 @@ final class AppModel {
         }
 
         self.persistWidgetSnapshot()
+        await self.syncRecommendationAlerts()
     }
 
     func updateSwitchThreshold(_ value: Int) {
@@ -182,6 +196,18 @@ final class AppModel {
     func resetRules() {
         self.rules = .default
         self.persistWidgetSnapshot()
+    }
+
+    func updateRecommendationAlertsEnabled(_ isEnabled: Bool) {
+        self.recommendationAlertSettings = RecommendationAlertSettings(isEnabled: isEnabled)
+        self.recommendationAlertSettingsStorage.save(self.recommendationAlertSettings)
+
+        if !isEnabled {
+            try? self.recommendationAlertStateStore.saveState([:])
+            self.lastRecommendationAlertSummary = "Recommendation alerts disabled."
+        } else {
+            self.lastRecommendationAlertSummary = "Recommendation alerts will appear when a new switch suggestion is detected."
+        }
     }
 
     func addStoredProfileSource(
@@ -313,5 +339,35 @@ final class AppModel {
         #if canImport(WidgetKit)
         WidgetCenter.shared.reloadAllTimelines()
         #endif
+    }
+
+    private func syncRecommendationAlerts() async {
+        guard self.recommendationAlertSettings.isEnabled else { return }
+
+        let candidates = RecommendationAlertPlanner.makeCandidates(recommendations: self.providerRecommendations)
+        let previousState = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
+        var nextState: [QuotaProvider: String] = [:]
+        var deliveredProviders: [String] = []
+
+        for candidate in candidates {
+            if previousState[candidate.provider] == candidate.identifier {
+                nextState[candidate.provider] = candidate.identifier
+                continue
+            }
+
+            let delivered = await self.recommendationAlertNotifier.deliver(candidate)
+            if delivered {
+                nextState[candidate.provider] = candidate.identifier
+                deliveredProviders.append(candidate.provider.displayName)
+            }
+        }
+
+        try? self.recommendationAlertStateStore.saveState(nextState)
+
+        if deliveredProviders.isEmpty {
+            self.lastRecommendationAlertSummary = "No new recommendation alerts were sent."
+        } else {
+            self.lastRecommendationAlertSummary = "Sent recommendation alert for \(deliveredProviders.joined(separator: ", "))."
+        }
     }
 }
