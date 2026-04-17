@@ -1,6 +1,52 @@
 import SwiftUI
 import QuotaPilotCore
 
+private struct RecoveryCenterExpansionState: Equatable {
+    let needsAttentionExpanded: Bool
+    let restoreOptionsExpanded: Bool
+    let recentRecoveryExpanded: Bool
+}
+
+private struct RecoveryCenterExpansionStorage {
+    private let key: String
+    private let userDefaults: UserDefaults
+
+    init(
+        userDefaults: UserDefaults = .standard,
+        key: String = "quotapilot.recovery-center-expansion"
+    ) {
+        self.key = key
+        self.userDefaults = userDefaults
+    }
+
+    func load() -> RecoveryCenterExpansionState? {
+        guard let dictionary = self.userDefaults.dictionary(forKey: self.key) else { return nil }
+        guard let needsAttentionExpanded = dictionary["needsAttentionExpanded"] as? Bool,
+              let restoreOptionsExpanded = dictionary["restoreOptionsExpanded"] as? Bool,
+              let recentRecoveryExpanded = dictionary["recentRecoveryExpanded"] as? Bool
+        else {
+            return nil
+        }
+
+        return RecoveryCenterExpansionState(
+            needsAttentionExpanded: needsAttentionExpanded,
+            restoreOptionsExpanded: restoreOptionsExpanded,
+            recentRecoveryExpanded: recentRecoveryExpanded
+        )
+    }
+
+    func save(_ state: RecoveryCenterExpansionState) {
+        self.userDefaults.set(
+            [
+                "needsAttentionExpanded": state.needsAttentionExpanded,
+                "restoreOptionsExpanded": state.restoreOptionsExpanded,
+                "recentRecoveryExpanded": state.recentRecoveryExpanded,
+            ],
+            forKey: self.key
+        )
+    }
+}
+
 struct RulesSettingsView: View {
     private enum RecoveryGroup: Hashable {
         case needsAttention
@@ -9,6 +55,8 @@ struct RulesSettingsView: View {
     }
 
     let model: AppModel
+
+    private let recoveryCenterExpansionStorage = RecoveryCenterExpansionStorage()
 
     @State private var draftProvider: QuotaProvider = .codex
     @State private var draftLabel = ""
@@ -226,6 +274,7 @@ struct RulesSettingsView: View {
                 } else {
                     self.expandedRecoveryGroups.remove(group)
                 }
+                self.persistRecoveryGroups()
             }
         )
     }
@@ -233,6 +282,11 @@ struct RulesSettingsView: View {
     private func seedRecoveryGroupsIfNeeded() {
         guard !self.didSeedRecoveryGroups else { return }
         self.didSeedRecoveryGroups = true
+
+        if let storedState = self.recoveryCenterExpansionStorage.load() {
+            self.expandedRecoveryGroups = self.groups(from: storedState)
+            return
+        }
 
         let nonEmptyGroups = [
             self.needsAttentionCount > 0 ? RecoveryGroup.needsAttention : nil,
@@ -245,6 +299,30 @@ struct RulesSettingsView: View {
         } else {
             self.expandedRecoveryGroups = []
         }
+    }
+
+    private func persistRecoveryGroups() {
+        self.recoveryCenterExpansionStorage.save(
+            RecoveryCenterExpansionState(
+                needsAttentionExpanded: self.expandedRecoveryGroups.contains(.needsAttention),
+                restoreOptionsExpanded: self.expandedRecoveryGroups.contains(.restoreOptions),
+                recentRecoveryExpanded: self.expandedRecoveryGroups.contains(.recentRecovery)
+            )
+        )
+    }
+
+    private func groups(from state: RecoveryCenterExpansionState) -> Set<RecoveryGroup> {
+        var groups: Set<RecoveryGroup> = []
+        if state.needsAttentionExpanded {
+            groups.insert(.needsAttention)
+        }
+        if state.restoreOptionsExpanded {
+            groups.insert(.restoreOptions)
+        }
+        if state.recentRecoveryExpanded {
+            groups.insert(.recentRecovery)
+        }
+        return groups
     }
 
     @ViewBuilder
