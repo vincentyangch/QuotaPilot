@@ -3,6 +3,8 @@ import QuotaPilotCore
 
 struct ProviderHealthSectionView: View {
     let summaries: [ProviderHealthSummary]
+    let isRefreshingUsage: Bool
+    let onRefresh: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -61,6 +63,19 @@ struct ProviderHealthSectionView: View {
                     Text(summary.manualAction)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+
+                    if summary.state != .healthy {
+                        HStack(spacing: 10) {
+                            Button(self.isRefreshingUsage ? "Refreshing..." : "Retry Refresh") {
+                                self.onRefresh()
+                            }
+                            .disabled(self.isRefreshingUsage)
+
+                            SettingsLink {
+                                Text(summary.state == .notConfigured ? "Add Profiles" : "Open Settings")
+                            }
+                        }
+                    }
                 }
                 .padding(14)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))

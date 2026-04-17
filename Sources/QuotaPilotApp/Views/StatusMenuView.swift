@@ -34,7 +34,14 @@ struct StatusMenuView: View {
 
             Divider()
 
-            ProviderHealthSectionView(summaries: self.model.providerHealthSummaries)
+            ProviderHealthSectionView(
+                summaries: self.model.providerHealthSummaries,
+                isRefreshingUsage: self.model.isRefreshingUsage
+            ) {
+                Task {
+                    await self.model.refreshLiveUsage()
+                }
+            }
 
             if !self.model.pendingSwitchConfirmations.isEmpty {
                 Divider()

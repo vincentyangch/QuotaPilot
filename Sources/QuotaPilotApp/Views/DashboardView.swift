@@ -96,7 +96,14 @@ struct DashboardView: View {
                         StaleAccountsWarningView(detail: self.model.staleAccountsWarningText)
                     }
 
-                    ProviderHealthSectionView(summaries: self.model.providerHealthSummaries)
+                    ProviderHealthSectionView(
+                        summaries: self.model.providerHealthSummaries,
+                        isRefreshingUsage: self.model.isRefreshingUsage
+                    ) {
+                        Task {
+                            await self.model.refreshLiveUsage()
+                        }
+                    }
 
                     if !self.model.providerRecommendations.isEmpty {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
