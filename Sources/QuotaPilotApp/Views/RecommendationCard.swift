@@ -3,6 +3,9 @@ import QuotaPilotCore
 
 struct RecommendationCard: View {
     let recommendation: RecommendationEngine.ProviderRecommendation
+    let activationOption: RecommendationActivationOption?
+    let isActivatingProfile: Bool
+    let onActivateRecommended: (() -> Void)?
 
     private var title: String {
         "Best \(self.recommendation.provider.displayName) Account"
@@ -45,6 +48,25 @@ struct RecommendationCard: View {
                 Text(self.recommendation.decision.explanation)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            }
+
+            if let activationOption {
+                Divider()
+
+                HStack(alignment: .center, spacing: 12) {
+                    Text(activationOption.reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    if let onActivateRecommended {
+                        Button(self.isActivatingProfile ? "Activating..." : "Activate Recommended") {
+                            onActivateRecommended()
+                        }
+                        .disabled(self.isActivatingProfile || !activationOption.isActivatable)
+                    }
+                }
             }
         }
         .padding(18)

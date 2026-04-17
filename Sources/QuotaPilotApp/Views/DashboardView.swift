@@ -39,7 +39,15 @@ struct DashboardView: View {
 
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         ForEach(self.model.providerRecommendations) { recommendation in
-                            RecommendationCard(recommendation: recommendation)
+                            RecommendationCard(
+                                recommendation: recommendation,
+                                activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
+                                isActivatingProfile: self.model.isActivatingProfile
+                            ) {
+                                Task {
+                                    await self.model.activateRecommendedProfile(for: recommendation.provider)
+                                }
+                            }
                         }
                     }
 

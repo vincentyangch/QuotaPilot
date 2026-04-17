@@ -9,7 +9,15 @@ struct StatusMenuView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(self.model.providerRecommendations) { recommendation in
-                RecommendationCard(recommendation: recommendation)
+                RecommendationCard(
+                    recommendation: recommendation,
+                    activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
+                    isActivatingProfile: self.model.isActivatingProfile
+                ) {
+                    Task {
+                        await self.model.activateRecommendedProfile(for: recommendation.provider)
+                    }
+                }
             }
 
             Divider()
@@ -61,6 +69,12 @@ struct StatusMenuView: View {
             Text(self.model.lastUsageRefreshSummary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            if let lastProfileActionSummary = self.model.lastProfileActionSummary {
+                Text(lastProfileActionSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(16)
         .frame(width: 340)

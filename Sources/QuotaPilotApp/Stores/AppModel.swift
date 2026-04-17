@@ -77,6 +77,15 @@ final class AppModel {
         )
     }
 
+    func recommendationActivationOption(for provider: QuotaProvider) -> RecommendationActivationOption? {
+        guard let recommendation = self.recommendation(for: provider) else { return nil }
+        return RecommendationActivationPlanner.makeOption(
+            recommendation: recommendation,
+            discoveredProfiles: self.discoveredProfiles,
+            currentProfileRootPaths: self.resolvedCurrentProfilePaths
+        )
+    }
+
     var recommendedAccountIDs: Set<UUID> {
         Set(self.providerRecommendations.compactMap(\.recommendedAccount?.id))
     }
@@ -231,6 +240,20 @@ final class AppModel {
             return
         }
         await self.activateProfile(profile)
+    }
+
+    func activateRecommendedProfile(for provider: QuotaProvider) async {
+        guard let option = self.recommendationActivationOption(for: provider) else {
+            self.lastProfileActionSummary = "No activatable recommendation is available for \(provider.displayName)."
+            return
+        }
+
+        guard option.isActivatable else {
+            self.lastProfileActionSummary = option.reason
+            return
+        }
+
+        await self.activateProfile(provider: provider, profileRootPath: option.profileRootPath)
     }
 
     func removeStoredProfileSource(id: UUID) {
