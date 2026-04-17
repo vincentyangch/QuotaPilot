@@ -9,6 +9,9 @@ struct QuotaPilotApp: App {
         WindowGroup("QuotaPilot", id: "dashboard") {
             DashboardView(model: self.model)
                 .frame(minWidth: 960, minHeight: 600)
+                .task {
+                    await self.model.performInitialLiveRefreshIfNeeded()
+                }
         }
 
         MenuBarExtra("QuotaPilot", systemImage: "gauge.with.dots.needle.67percent") {

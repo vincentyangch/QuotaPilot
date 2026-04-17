@@ -5,6 +5,9 @@ struct RulesSettingsView: View {
 
     private var discoveredProfilesSection: some View {
         Section("Discovered Local Profiles") {
+            Text(self.model.lastUsageRefreshSummary)
+                .foregroundStyle(.secondary)
+
             if self.model.discoveredProfiles.isEmpty {
                 Text("No ambient Codex or Claude profiles were found yet.")
                     .foregroundStyle(.secondary)
@@ -41,9 +44,12 @@ struct RulesSettingsView: View {
                 }
             }
 
-            Button("Refresh local profile scan") {
-                self.model.refreshDiscoveredProfiles()
+            Button(self.model.isRefreshingUsage ? "Refreshing local usage..." : "Refresh live usage from local profiles") {
+                Task {
+                    await self.model.refreshLiveUsage()
+                }
             }
+            .disabled(self.model.isRefreshingUsage)
         }
     }
 

@@ -33,6 +33,10 @@ struct DashboardView: View {
         } detail: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    Text(self.model.lastUsageRefreshSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         ForEach(self.model.providerRecommendations) { recommendation in
                             RecommendationCard(recommendation: recommendation)

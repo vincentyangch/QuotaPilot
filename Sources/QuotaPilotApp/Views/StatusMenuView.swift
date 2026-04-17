@@ -40,16 +40,27 @@ struct StatusMenuView: View {
             Divider()
 
             HStack {
+                Button(self.model.isRefreshingUsage ? "Refreshing..." : "Refresh Live Usage") {
+                    Task {
+                        await self.model.refreshLiveUsage()
+                    }
+                }
+                .disabled(self.model.isRefreshingUsage)
+
+                Spacer()
+
                 Button("Open Dashboard") {
                     self.openWindow(id: "dashboard")
                 }
-
-                Spacer()
 
                 Button("Reload Demo Data") {
                     self.model.reloadDemoData()
                 }
             }
+
+            Text(self.model.lastUsageRefreshSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(16)
         .frame(width: 340)
