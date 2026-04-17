@@ -27,7 +27,14 @@ public enum TrackedProfileInventoryBuilder {
             let lastRefreshSummary = liveAccount?.lastSuccessfulRefreshAt.map {
                 self.relativeRefreshText(from: $0, now: now)
             }
-            let capabilitySummary = self.capabilitySummary(for: liveAccount?.capabilities ?? .localProfile)
+            let effectiveSourceKind = liveAccount?.sourceKind ?? profile.sourceKind
+            let effectiveOwnershipMode = liveAccount?.ownershipMode ?? profile.ownershipMode
+            let capabilitySummary = self.capabilitySummary(
+                liveAccount: liveAccount,
+                lifecycleState: lifecycleStatus.state,
+                sourceKind: effectiveSourceKind,
+                ownershipMode: effectiveOwnershipMode
+            )
 
             return TrackedProfileInventoryItem(
                 provider: profile.provider,
@@ -42,11 +49,11 @@ public enum TrackedProfileInventoryBuilder {
                 ),
                 profileRootPath: standardizedProfilePath,
                 sourceDescription: profile.sourceDescription,
-                sourceKind: liveAccount?.sourceKind ?? profile.sourceKind,
-                ownershipMode: liveAccount?.ownershipMode ?? profile.ownershipMode,
+                sourceKind: effectiveSourceKind,
+                ownershipMode: effectiveOwnershipMode,
                 sourceSummary: self.sourceSummary(
-                    sourceKind: liveAccount?.sourceKind ?? profile.sourceKind,
-                    ownershipMode: liveAccount?.ownershipMode ?? profile.ownershipMode
+                    sourceKind: effectiveSourceKind,
+                    ownershipMode: effectiveOwnershipMode
                 ),
                 isCurrentSelection: currentProfileRootPaths[profile.provider] == standardizedProfilePath,
                 hasLiveUsage: liveAccount != nil,
@@ -79,6 +86,31 @@ public enum TrackedProfileInventoryBuilder {
 
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " • ")
+    }
+
+    private static func capabilitySummary(
+        liveAccount: QuotaAccount?,
+        lifecycleState: TrackedProfileLifecycleState,
+        sourceKind: ProfileSourceKind,
+        ownershipMode: ProfileOwnershipMode
+    ) -> String {
+        if let liveAccount {
+            return self.capabilitySummary(for: liveAccount.capabilities)
+        }
+
+        switch lifecycleState {
+        case .awaitingRefresh:
+            var labels: [String] = []
+            if sourceKind == .stored || sourceKind == .backup || ownershipMode == .quotaPilotManaged {
+                labels.append("Auto-Switch")
+            }
+            labels.append("Desktop Handoff")
+            return labels.joined(separator: ", ")
+        case .ready:
+            return self.capabilitySummary(for: .localProfile)
+        case .credentialsMissing, .authExpired, .sessionUnavailable, .usageReadFailed:
+            return "Desktop Handoff"
+        }
     }
 
     private static func capabilitySummary(for capabilities: QuotaAccountCapabilities) -> String {

@@ -40,7 +40,7 @@ final class TrackedProfileInventoryBuilderTests: XCTestCase {
         XCTAssertFalse(items[0].hasLiveUsage)
         XCTAssertEqual(items[0].statusSummary, "Awaiting live refresh")
         XCTAssertEqual(items[0].lifecycleTitle, "Awaiting Refresh")
-        XCTAssertEqual(items[0].capabilitySummary, "Usage, Recommend, Auto-Switch, Desktop Handoff")
+        XCTAssertEqual(items[0].capabilitySummary, "Auto-Switch, Desktop Handoff")
         XCTAssertEqual(items[0].sourceSummary, "Stored • External")
         XCTAssertNil(items[0].lastRefreshSummary)
         XCTAssertNil(items[0].lastErrorDetail)
@@ -117,5 +117,40 @@ final class TrackedProfileInventoryBuilderTests: XCTestCase {
         XCTAssertEqual(item?.sourceSummary, "Backup • Managed")
         XCTAssertEqual(item?.lastRefreshSummary, "Updated 1 min ago")
         XCTAssertEqual(item?.lastErrorDetail, "Codex usage request failed with HTTP 401.")
+    }
+
+    func testDowngradesCapabilitiesWhenAuthIsExpired() {
+        let discoveredProfiles = [
+            DiscoveredLocalProfile(
+                provider: .claude,
+                label: "Claude Team",
+                email: nil,
+                plan: "team",
+                profileRootURL: URL(fileURLWithPath: "/Users/tester/.quotapilot/claude-team", isDirectory: true),
+                credentialsURL: URL(fileURLWithPath: "/Users/tester/.quotapilot/claude-team/.credentials.json"),
+                sourceDescription: "Stored profile source",
+                sourceKind: .stored,
+                ownershipMode: .externalLocal
+            )
+        ]
+
+        let items = TrackedProfileInventoryBuilder.makeItems(
+            discoveredProfiles: discoveredProfiles,
+            liveAccounts: [],
+            failures: [
+                AmbientUsageRefreshFailure(
+                    provider: .claude,
+                    profileLabel: "Claude Team",
+                    profileRootPath: "/Users/tester/.quotapilot/claude-team",
+                    detail: "Claude usage request failed with HTTP 401.",
+                    kind: .requestFailed(statusCode: 401)
+                )
+            ],
+            currentProfileRootPaths: [:]
+        )
+
+        let item = try? XCTUnwrap(items.first)
+        XCTAssertEqual(item?.lifecycleTitle, "Auth Expired")
+        XCTAssertEqual(item?.capabilitySummary, "Desktop Handoff")
     }
 }
