@@ -44,8 +44,11 @@ struct DashboardView: View {
                             Text(selectedAccount.label)
                                 .font(.title2.weight(.semibold))
 
-                            Label(selectedAccount.provider.displayName, systemImage: selectedAccount.provider.symbolName)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                ProviderIconView(provider: selectedAccount.provider, size: 16)
+                                Text(selectedAccount.provider.displayName)
+                                    .foregroundStyle(.secondary)
+                            }
 
                             HStack(spacing: 14) {
                                 ForEach(selectedAccount.windows) { window in

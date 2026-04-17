@@ -2,6 +2,27 @@ import SwiftUI
 import WidgetKit
 import QuotaPilotCore
 
+struct WidgetProviderIconView: View {
+    let provider: QuotaProvider
+
+    var body: some View {
+        Group {
+            if let image = ProviderBrandAsset.iconImage(for: self.provider, size: 12) {
+                Image(nsImage: image)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: self.provider.symbolName)
+                    .resizable()
+                    .scaledToFit()
+            }
+        }
+        .frame(width: 12, height: 12)
+        .foregroundStyle(.secondary)
+    }
+}
+
 struct QuotaPilotEntry: TimelineEntry {
     let date: Date
     let providerRecommendations: [RecommendationEngine.ProviderRecommendation]
@@ -39,9 +60,12 @@ struct QuotaPilotWidgetView: View {
 
             ForEach(self.entry.providerRecommendations) { recommendation in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(recommendation.provider.displayName)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        WidgetProviderIconView(provider: recommendation.provider)
+                        Text(recommendation.provider.displayName)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
 
                     Text(recommendation.recommendedAccount?.label ?? "Unavailable")
                         .font(.headline)

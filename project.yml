@@ -12,6 +12,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources/QuotaPilotCore
+    resources:
+      - path: Sources/QuotaPilotCore/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vincentyangch.QuotaPilot.core

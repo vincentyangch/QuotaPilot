@@ -9,10 +9,12 @@ struct AccountRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: self.account.provider.symbolName)
-                .font(.title3)
-                .foregroundStyle(self.isRecommended ? Color.accentColor : Color.secondary)
-                .frame(width: 22)
+            ProviderIconView(
+                provider: self.account.provider,
+                size: 18,
+                tint: self.isRecommended ? .accentColor : .secondary
+            )
+            .frame(width: 22)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {

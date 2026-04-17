@@ -24,8 +24,11 @@ struct RecommendationCard: View {
                         .font(.title3.weight(.semibold))
 
                     if let account = self.recommendation.recommendedAccount {
-                        Label(account.provider.displayName, systemImage: account.provider.symbolName)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            ProviderIconView(provider: account.provider, size: 14)
+                            Text(account.provider.displayName)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
