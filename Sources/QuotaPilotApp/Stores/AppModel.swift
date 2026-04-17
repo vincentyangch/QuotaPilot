@@ -60,6 +60,14 @@ final class AppModel {
         self.engine.recommendationsByProvider(accounts: self.accounts, rules: self.rules)
     }
 
+    var trackedProfileInventoryItems: [TrackedProfileInventoryItem] {
+        TrackedProfileInventoryBuilder.makeItems(
+            discoveredProfiles: self.discoveredProfiles,
+            liveAccounts: self.accounts,
+            currentProfileRootPaths: self.resolvedCurrentProfilePaths
+        )
+    }
+
     var recommendedAccountIDs: Set<UUID> {
         Set(self.providerRecommendations.compactMap(\.recommendedAccount?.id))
     }

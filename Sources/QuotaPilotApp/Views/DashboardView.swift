@@ -43,6 +43,8 @@ struct DashboardView: View {
                         }
                     }
 
+                    TrackedProfileInventorySectionView(items: self.model.trackedProfileInventoryItems)
+
                     if let selectedAccount {
                         VStack(alignment: .leading, spacing: 14) {
                             Text(selectedAccount.label)

@@ -188,6 +188,8 @@ public struct AmbientUsageLoader: Sendable {
             label: profile.label,
             priority: Self.priority(for: profile.plan),
             isCurrent: isCurrent,
+            profileRootPath: profile.profileRootURL.standardizedFileURL.path,
+            sourceDescription: profile.sourceDescription,
             windows: windows
         )
     }
@@ -212,6 +214,8 @@ public struct AmbientUsageLoader: Sendable {
             label: profile.label,
             priority: Self.priority(for: profile.plan),
             isCurrent: isCurrent,
+            profileRootPath: profile.profileRootURL.standardizedFileURL.path,
+            sourceDescription: profile.sourceDescription,
             windows: windows
         )
     }

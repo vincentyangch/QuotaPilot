@@ -6,6 +6,8 @@ public struct QuotaAccount: Identifiable, Codable, Equatable, Sendable {
     public let label: String
     public let priority: Int
     public let isCurrent: Bool
+    public let profileRootPath: String?
+    public let sourceDescription: String?
     public let windows: [UsageWindow]
 
     public init(
@@ -14,6 +16,8 @@ public struct QuotaAccount: Identifiable, Codable, Equatable, Sendable {
         label: String,
         priority: Int,
         isCurrent: Bool,
+        profileRootPath: String? = nil,
+        sourceDescription: String? = nil,
         windows: [UsageWindow]
     ) {
         self.id = id
@@ -21,6 +25,8 @@ public struct QuotaAccount: Identifiable, Codable, Equatable, Sendable {
         self.label = label
         self.priority = priority
         self.isCurrent = isCurrent
+        self.profileRootPath = profileRootPath
+        self.sourceDescription = sourceDescription
         self.windows = windows
     }
 
@@ -43,7 +49,9 @@ public extension QuotaAccount {
         remainingPercent: Int,
         resetHours: Int,
         priority: Int,
-        isCurrent: Bool
+        isCurrent: Bool,
+        profileRootPath: String? = nil,
+        sourceDescription: String? = nil
     ) -> Self {
         QuotaAccount(
             id: UUID(),
@@ -51,6 +59,8 @@ public extension QuotaAccount {
             label: label,
             priority: priority,
             isCurrent: isCurrent,
+            profileRootPath: profileRootPath,
+            sourceDescription: sourceDescription,
             windows: [
                 UsageWindow(
                     id: "session",
@@ -73,7 +83,9 @@ public extension QuotaAccount {
         remainingPercent: Int,
         resetHours: Int,
         priority: Int,
-        isCurrent: Bool
+        isCurrent: Bool,
+        profileRootPath: String? = nil,
+        sourceDescription: String? = nil
     ) -> Self {
         QuotaAccount(
             id: UUID(),
@@ -81,6 +93,8 @@ public extension QuotaAccount {
             label: label,
             priority: priority,
             isCurrent: isCurrent,
+            profileRootPath: profileRootPath,
+            sourceDescription: sourceDescription,
             windows: [
                 UsageWindow(
                     id: "weekly",
