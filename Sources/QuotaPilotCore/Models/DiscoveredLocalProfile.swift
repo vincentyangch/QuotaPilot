@@ -36,4 +36,8 @@ public struct DiscoveredLocalProfile: Identifiable, Equatable, Sendable {
     public var id: String {
         "\(self.provider.rawValue):\(self.profileRootURL.path)"
     }
+
+    public var sourceSummary: String {
+        "\(self.sourceKind.displayLabel) • \(self.ownershipMode.displayLabel)"
+    }
 }

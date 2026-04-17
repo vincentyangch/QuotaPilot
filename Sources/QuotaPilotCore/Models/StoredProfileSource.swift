@@ -33,6 +33,10 @@ public struct StoredProfileSource: Identifiable, Codable, Equatable, Sendable {
     public var profileRootURL: URL {
         URL(fileURLWithPath: self.profileRootPath, isDirectory: true)
     }
+
+    public var sourceSummary: String {
+        "\(self.sourceKind.displayLabel) • \(self.ownershipMode.displayLabel)"
+    }
 }
 
 extension StoredProfileSource {

@@ -63,6 +63,10 @@ struct RulesSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
+                        Text(profile.sourceSummary)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
                         Text(profile.profileRootURL.path)
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
@@ -101,6 +105,9 @@ struct RulesSettingsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(source.label)
                                 .fontWeight(.semibold)
+                            Text(source.sourceSummary)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                             Text(source.profileRootPath)
                                 .font(.caption2.monospaced())
                                 .foregroundStyle(.secondary)
