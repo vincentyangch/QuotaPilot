@@ -37,6 +37,10 @@ struct StatusMenuView: View {
 
             Divider()
 
+            ActivityLogSectionView(entries: self.model.activityLogEntries, maxEntries: 4)
+
+            Divider()
+
             VStack(alignment: .leading, spacing: 12) {
                 Text("Accounts")
                     .font(.caption.weight(.semibold))

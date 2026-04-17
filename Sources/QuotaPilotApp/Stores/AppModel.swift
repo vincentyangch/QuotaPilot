@@ -8,6 +8,7 @@ import WidgetKit
 @MainActor
 @Observable
 final class AppModel {
+    private let activityLogStore: ActivityLogStore
     private let engine = RecommendationEngine()
     private let ambientUsageLoader: AmbientUsageLoader
     private let backgroundRefreshSettingsStorage: BackgroundRefreshSettingsStorage
@@ -27,6 +28,7 @@ final class AppModel {
     private let homeURL: URL
 
     var accounts: [QuotaAccount]
+    var activityLogEntries: [ActivityLogEntry]
     var backgroundRefreshSettings: BackgroundRefreshSettings
     var currentProfileSelections: [QuotaProvider: String]
     var discoveredProfiles: [DiscoveredLocalProfile]
@@ -46,6 +48,7 @@ final class AppModel {
     }
 
     init(
+        activityLogStore: ActivityLogStore = ActivityLogStore(),
         accounts: [QuotaAccount] = DemoAccountRepository.makeAccounts(),
         ambientUsageLoader: AmbientUsageLoader = AmbientUsageLoader(),
         backgroundRefreshSettingsStorage: BackgroundRefreshSettingsStorage = BackgroundRefreshSettingsStorage(),
@@ -62,6 +65,7 @@ final class AppModel {
         homeURL: URL = FileManager.default.homeDirectoryForCurrentUser,
         rules: GlobalRules? = nil
     ) {
+        self.activityLogStore = activityLogStore
         self.ambientUsageLoader = ambientUsageLoader
         self.backgroundRefreshSettingsStorage = backgroundRefreshSettingsStorage
         self.profileActivator = profileActivator
@@ -83,7 +87,11 @@ final class AppModel {
             preferredSelections: currentSelections
         )
         let discoveredProfiles = profileDiscovery.discover(candidates: candidates)
+        let activityLogEntries = ((try? activityLogStore.loadEntries()) ?? []).sorted {
+            $0.timestamp > $1.timestamp
+        }
         self.accounts = accounts
+        self.activityLogEntries = activityLogEntries
         self.backgroundRefreshSettings = backgroundRefreshSettingsStorage.load()
         self.currentProfileSelections = currentSelections
         self.discoveredProfiles = discoveredProfiles
@@ -132,6 +140,12 @@ final class AppModel {
         self.accounts = DemoAccountRepository.makeAccounts()
         self.lastUsageRefreshSummary = "Reloaded demo data."
         self.persistWidgetSnapshot()
+        self.recordActivity(
+            kind: .refreshSucceeded,
+            provider: nil,
+            title: "Reloaded demo data",
+            detail: "QuotaPilot is showing demo data again."
+        )
     }
 
     func refreshDiscoveredProfiles() {
@@ -183,6 +197,12 @@ final class AppModel {
 
         guard !self.discoveredProfiles.isEmpty else {
             self.lastUsageRefreshSummary = "No local profiles found. Showing demo data."
+            self.recordActivity(
+                kind: .refreshFailed,
+                provider: nil,
+                title: "Refresh skipped",
+                detail: self.lastUsageRefreshSummary
+            )
             return
         }
 
@@ -197,10 +217,28 @@ final class AppModel {
 
         if result.accounts.isEmpty {
             self.lastUsageRefreshSummary = "Could not load live usage from local profiles."
+            self.recordActivity(
+                kind: .refreshFailed,
+                provider: nil,
+                title: "Refresh failed",
+                detail: self.lastUsageRefreshSummary
+            )
         } else if result.failures.isEmpty {
             self.lastUsageRefreshSummary = "Loaded live usage for \(result.accounts.count) local profile(s)."
+            self.recordActivity(
+                kind: .refreshSucceeded,
+                provider: nil,
+                title: "Refresh succeeded",
+                detail: self.lastUsageRefreshSummary
+            )
         } else {
             self.lastUsageRefreshSummary = "Loaded \(result.accounts.count) live profile(s); \(result.failures.count) refresh failed."
+            self.recordActivity(
+                kind: .refreshFailed,
+                provider: nil,
+                title: "Refresh partially failed",
+                detail: self.lastUsageRefreshSummary
+            )
         }
 
         self.persistWidgetSnapshot()
@@ -209,12 +247,28 @@ final class AppModel {
         pendingConfirmationUpdates = Dictionary(uniqueKeysWithValues: switchPlan.confirmationsToPresent.map { ($0.provider, $0) })
         if !switchPlan.confirmationsToPresent.isEmpty {
             self.lastProfileActionSummary = "Confirmation needed for \(switchPlan.confirmationsToPresent.count) recommended profile(s)."
+            for option in switchPlan.confirmationsToPresent {
+                self.recordActivity(
+                    kind: .confirmationQueued,
+                    provider: option.provider,
+                    title: "Confirmation needed",
+                    detail: "Review whether to switch to \(option.accountLabel)."
+                )
+            }
         }
 
         if pendingAutomaticActivations.isEmpty {
             await self.syncRecommendationAlerts()
         } else {
             self.lastProfileActionSummary = "Auto-activating \(pendingAutomaticActivations.count) recommended profile(s)."
+            for option in pendingAutomaticActivations {
+                self.recordActivity(
+                    kind: .autoActivationQueued,
+                    provider: option.provider,
+                    title: "Auto-activation queued",
+                    detail: "QuotaPilot will activate \(option.accountLabel) after refresh."
+                )
+            }
         }
     }
 
@@ -342,9 +396,21 @@ final class AppModel {
             self.currentProfileSelections[profile.provider] = result.activatedProfileRootPath
             try? self.currentProfileSelectionStore.saveSelections(self.currentProfileSelections)
             self.lastProfileActionSummary = "Activated \(profile.label) for \(profile.provider.displayName)."
+            self.recordActivity(
+                kind: .activationSucceeded,
+                provider: profile.provider,
+                title: "Activated profile",
+                detail: "Activated \(profile.label) for \(profile.provider.displayName)."
+            )
             await self.refreshLiveUsage()
         } catch {
             self.lastProfileActionSummary = "Could not activate \(profile.label): \(error.localizedDescription)"
+            self.recordActivity(
+                kind: .activationFailed,
+                provider: profile.provider,
+                title: "Activation failed",
+                detail: self.lastProfileActionSummary ?? "Activation failed."
+            )
         }
     }
 
@@ -386,6 +452,12 @@ final class AppModel {
             state[provider] = candidate.identifier
             try? self.recommendationAlertStateStore.saveState(state)
         }
+        self.recordActivity(
+            kind: .confirmationApproved,
+            provider: provider,
+            title: "Approved switch",
+            detail: "Approved the pending \(provider.displayName) switch."
+        )
         await self.activateProfile(provider: provider, profileRootPath: option.profileRootPath)
     }
 
@@ -397,6 +469,12 @@ final class AppModel {
             try? self.recommendationAlertStateStore.saveState(state)
         }
         self.lastProfileActionSummary = "Dismissed the pending \(provider.displayName) switch request."
+        self.recordActivity(
+            kind: .confirmationDismissed,
+            provider: provider,
+            title: "Dismissed switch",
+            detail: self.lastProfileActionSummary ?? "Dismissed switch."
+        )
     }
 
     func removeStoredProfileSource(id: UUID) {
@@ -469,6 +547,15 @@ final class AppModel {
             self.lastRecommendationAlertSummary = "No new recommendation alerts were sent."
         } else {
             self.lastRecommendationAlertSummary = "Sent recommendation alert for \(deliveredProviders.joined(separator: ", "))."
+            for providerName in deliveredProviders {
+                let provider = QuotaProvider.allCases.first(where: { $0.displayName == providerName })
+                self.recordActivity(
+                    kind: .alertSent,
+                    provider: provider,
+                    title: "Sent recommendation alert",
+                    detail: "Sent a recommendation alert for \(providerName)."
+                )
+            }
         }
     }
 
@@ -536,5 +623,24 @@ final class AppModel {
         }
 
         return plan
+    }
+
+    private func recordActivity(
+        kind: ActivityLogKind,
+        provider: QuotaProvider?,
+        title: String,
+        detail: String
+    ) {
+        let entry = ActivityLogEntry(
+            id: UUID(),
+            timestamp: .now,
+            kind: kind,
+            provider: provider,
+            title: title,
+            detail: detail
+        )
+        self.activityLogEntries.insert(entry, at: 0)
+        let entriesForPersistence = self.activityLogEntries.sorted { $0.timestamp < $1.timestamp }
+        try? self.activityLogStore.saveEntries(entriesForPersistence)
     }
 }

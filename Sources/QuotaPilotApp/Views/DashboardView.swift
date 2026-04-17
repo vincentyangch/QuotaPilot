@@ -76,6 +76,8 @@ struct DashboardView: View {
                         }
                     }
 
+                    ActivityLogSectionView(entries: self.model.activityLogEntries)
+
                     if let selectedAccount {
                         VStack(alignment: .leading, spacing: 14) {
                             Text(selectedAccount.label)
