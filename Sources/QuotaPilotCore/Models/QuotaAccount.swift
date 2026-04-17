@@ -12,6 +12,8 @@ public struct QuotaAccount: Identifiable, Codable, Equatable, Sendable {
     public let plan: String?
     public let organizationLabel: String?
     public let workspaceLabel: String?
+    public let sourceKind: ProfileSourceKind
+    public let ownershipMode: ProfileOwnershipMode
     public let capabilities: QuotaAccountCapabilities
     public let lastSuccessfulRefreshAt: Date?
     public let windows: [UsageWindow]
@@ -28,6 +30,8 @@ public struct QuotaAccount: Identifiable, Codable, Equatable, Sendable {
         plan: String? = nil,
         organizationLabel: String? = nil,
         workspaceLabel: String? = nil,
+        sourceKind: ProfileSourceKind = .stored,
+        ownershipMode: ProfileOwnershipMode = .externalLocal,
         capabilities: QuotaAccountCapabilities = .localProfile,
         lastSuccessfulRefreshAt: Date? = nil,
         windows: [UsageWindow]
@@ -43,6 +47,8 @@ public struct QuotaAccount: Identifiable, Codable, Equatable, Sendable {
         self.plan = plan
         self.organizationLabel = organizationLabel
         self.workspaceLabel = workspaceLabel
+        self.sourceKind = sourceKind
+        self.ownershipMode = ownershipMode
         self.capabilities = capabilities
         self.lastSuccessfulRefreshAt = lastSuccessfulRefreshAt
         self.windows = windows
@@ -89,6 +95,10 @@ public struct QuotaAccount: Identifiable, Codable, Equatable, Sendable {
         }
         return labels
     }
+
+    public var sourceSummary: String {
+        "\(self.sourceKind.displayLabel) • \(self.ownershipMode.displayLabel)"
+    }
 }
 
 extension QuotaAccount {
@@ -104,6 +114,8 @@ extension QuotaAccount {
         case plan
         case organizationLabel
         case workspaceLabel
+        case sourceKind
+        case ownershipMode
         case capabilities
         case lastSuccessfulRefreshAt
         case windows
@@ -122,6 +134,8 @@ extension QuotaAccount {
         self.plan = try container.decodeIfPresent(String.self, forKey: .plan)
         self.organizationLabel = try container.decodeIfPresent(String.self, forKey: .organizationLabel)
         self.workspaceLabel = try container.decodeIfPresent(String.self, forKey: .workspaceLabel)
+        self.sourceKind = try container.decodeIfPresent(ProfileSourceKind.self, forKey: .sourceKind) ?? .stored
+        self.ownershipMode = try container.decodeIfPresent(ProfileOwnershipMode.self, forKey: .ownershipMode) ?? .externalLocal
         self.capabilities = try container.decodeIfPresent(QuotaAccountCapabilities.self, forKey: .capabilities) ?? .localProfile
         self.lastSuccessfulRefreshAt = try container.decodeIfPresent(Date.self, forKey: .lastSuccessfulRefreshAt)
         self.windows = try container.decode([UsageWindow].self, forKey: .windows)
@@ -140,6 +154,8 @@ extension QuotaAccount {
         try container.encodeIfPresent(self.plan, forKey: .plan)
         try container.encodeIfPresent(self.organizationLabel, forKey: .organizationLabel)
         try container.encodeIfPresent(self.workspaceLabel, forKey: .workspaceLabel)
+        try container.encode(self.sourceKind, forKey: .sourceKind)
+        try container.encode(self.ownershipMode, forKey: .ownershipMode)
         try container.encode(self.capabilities, forKey: .capabilities)
         try container.encodeIfPresent(self.lastSuccessfulRefreshAt, forKey: .lastSuccessfulRefreshAt)
         try container.encode(self.windows, forKey: .windows)
@@ -159,6 +175,8 @@ public extension QuotaAccount {
         plan: String? = nil,
         organizationLabel: String? = nil,
         workspaceLabel: String? = nil,
+        sourceKind: ProfileSourceKind = .stored,
+        ownershipMode: ProfileOwnershipMode = .externalLocal,
         capabilities: QuotaAccountCapabilities = .localProfile,
         lastSuccessfulRefreshAt: Date? = nil
     ) -> Self {
@@ -174,6 +192,8 @@ public extension QuotaAccount {
             plan: plan,
             organizationLabel: organizationLabel,
             workspaceLabel: workspaceLabel,
+            sourceKind: sourceKind,
+            ownershipMode: ownershipMode,
             capabilities: capabilities,
             lastSuccessfulRefreshAt: lastSuccessfulRefreshAt,
             windows: [
@@ -205,6 +225,8 @@ public extension QuotaAccount {
         plan: String? = nil,
         organizationLabel: String? = nil,
         workspaceLabel: String? = nil,
+        sourceKind: ProfileSourceKind = .stored,
+        ownershipMode: ProfileOwnershipMode = .externalLocal,
         capabilities: QuotaAccountCapabilities = .localProfile,
         lastSuccessfulRefreshAt: Date? = nil
     ) -> Self {
@@ -220,6 +242,8 @@ public extension QuotaAccount {
             plan: plan,
             organizationLabel: organizationLabel,
             workspaceLabel: workspaceLabel,
+            sourceKind: sourceKind,
+            ownershipMode: ownershipMode,
             capabilities: capabilities,
             lastSuccessfulRefreshAt: lastSuccessfulRefreshAt,
             windows: [

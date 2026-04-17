@@ -227,6 +227,8 @@ public struct AmbientUsageLoader: Sendable {
             sourceDescription: profile.sourceDescription,
             email: profile.email,
             plan: profile.plan,
+            sourceKind: profile.sourceKind,
+            ownershipMode: profile.ownershipMode,
             capabilities: .localProfile,
             lastSuccessfulRefreshAt: .now,
             windows: windows
@@ -257,6 +259,8 @@ public struct AmbientUsageLoader: Sendable {
             sourceDescription: profile.sourceDescription,
             email: profile.email,
             plan: profile.plan,
+            sourceKind: profile.sourceKind,
+            ownershipMode: profile.ownershipMode,
             capabilities: .localProfile,
             lastSuccessfulRefreshAt: .now,
             windows: windows

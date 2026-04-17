@@ -40,6 +40,12 @@ public enum TrackedProfileInventoryBuilder {
                 ),
                 profileRootPath: standardizedProfilePath,
                 sourceDescription: profile.sourceDescription,
+                sourceKind: liveAccount?.sourceKind ?? profile.sourceKind,
+                ownershipMode: liveAccount?.ownershipMode ?? profile.ownershipMode,
+                sourceSummary: self.sourceSummary(
+                    sourceKind: liveAccount?.sourceKind ?? profile.sourceKind,
+                    ownershipMode: liveAccount?.ownershipMode ?? profile.ownershipMode
+                ),
                 isCurrentSelection: currentProfileRootPaths[profile.provider] == standardizedProfilePath,
                 hasLiveUsage: liveAccount != nil,
                 liveRemainingPercent: liveRemainingPercent,
@@ -82,6 +88,13 @@ public enum TrackedProfileInventoryBuilder {
             labels.append("Desktop Handoff")
         }
         return labels.joined(separator: ", ")
+    }
+
+    private static func sourceSummary(
+        sourceKind: ProfileSourceKind,
+        ownershipMode: ProfileOwnershipMode
+    ) -> String {
+        "\(sourceKind.displayLabel) • \(ownershipMode.displayLabel)"
     }
 
     private static func relativeRefreshText(from refreshedAt: Date, now: Date) -> String {

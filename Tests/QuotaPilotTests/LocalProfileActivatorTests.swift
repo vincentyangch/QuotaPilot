@@ -48,6 +48,8 @@ final class LocalProfileActivatorTests: XCTestCase {
         let backupSource = try XCTUnwrap(result.createdBackupSource)
         XCTAssertEqual(backupSource.provider, .codex)
         XCTAssertEqual(backupSource.label, "Codex Ambient Backup")
+        XCTAssertEqual(backupSource.sourceKind, .backup)
+        XCTAssertEqual(backupSource.ownershipMode, .quotaPilotManaged)
         XCTAssertEqual(
             try Data(contentsOf: URL(fileURLWithPath: backupSource.profileRootPath, isDirectory: true).appendingPathComponent("auth.json")),
             originalAmbientData
@@ -101,6 +103,8 @@ final class LocalProfileActivatorTests: XCTestCase {
 
         let backupSource = try XCTUnwrap(result.createdBackupSource)
         XCTAssertEqual(backupSource.provider, .claude)
+        XCTAssertEqual(backupSource.sourceKind, .backup)
+        XCTAssertEqual(backupSource.ownershipMode, .quotaPilotManaged)
         XCTAssertEqual(
             try String(contentsOf: URL(fileURLWithPath: backupSource.profileRootPath, isDirectory: true).appendingPathComponent(".credentials.json")),
             ambientCredentials

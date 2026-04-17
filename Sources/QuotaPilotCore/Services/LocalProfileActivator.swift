@@ -141,7 +141,9 @@ public struct LocalProfileActivator {
             label: "\(provider.displayName) Ambient Backup",
             profileRootPath: backupRootURL.standardizedFileURL.path,
             isEnabled: true,
-            addedAt: Date()
+            addedAt: Date(),
+            sourceKind: .backup,
+            ownershipMode: .quotaPilotManaged
         )
     }
 

@@ -46,6 +46,10 @@ struct TrackedProfileInventorySectionView: View {
                                     .foregroundStyle(.secondary)
                             }
 
+                            Text(item.sourceSummary)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
                             Text(item.statusSummary)
                                 .font(.caption)
                                 .foregroundStyle(item.hasLiveUsage ? Color.secondary : Color.orange)

@@ -8,6 +8,8 @@ public struct DiscoveredLocalProfile: Identifiable, Equatable, Sendable {
     public let profileRootURL: URL
     public let credentialsURL: URL
     public let sourceDescription: String
+    public let sourceKind: ProfileSourceKind
+    public let ownershipMode: ProfileOwnershipMode
 
     public init(
         provider: QuotaProvider,
@@ -16,7 +18,9 @@ public struct DiscoveredLocalProfile: Identifiable, Equatable, Sendable {
         plan: String?,
         profileRootURL: URL,
         credentialsURL: URL,
-        sourceDescription: String
+        sourceDescription: String,
+        sourceKind: ProfileSourceKind = .stored,
+        ownershipMode: ProfileOwnershipMode = .externalLocal
     ) {
         self.provider = provider
         self.label = label
@@ -25,6 +29,8 @@ public struct DiscoveredLocalProfile: Identifiable, Equatable, Sendable {
         self.profileRootURL = profileRootURL
         self.credentialsURL = credentialsURL
         self.sourceDescription = sourceDescription
+        self.sourceKind = sourceKind
+        self.ownershipMode = ownershipMode
     }
 
     public var id: String {

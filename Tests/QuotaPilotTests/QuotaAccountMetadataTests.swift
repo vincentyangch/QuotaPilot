@@ -13,11 +13,14 @@ final class QuotaAccountMetadataTests: XCTestCase {
             sourceDescription: "Stored profile source",
             email: "work@example.com",
             plan: "pro",
-            workspaceLabel: "Personal Workspace"
+            workspaceLabel: "Personal Workspace",
+            sourceKind: .stored,
+            ownershipMode: .externalLocal
         )
 
         XCTAssertEqual(account.identitySummary, "work@example.com • PRO • Personal Workspace")
         XCTAssertEqual(account.capabilityLabels, ["Usage", "Recommend", "Auto-Switch", "Handoff"])
+        XCTAssertEqual(account.sourceSummary, "Stored • External")
     }
 
     func testPrefersOrganizationWhenWorkspaceIsMissing() {
@@ -31,9 +34,12 @@ final class QuotaAccountMetadataTests: XCTestCase {
             sourceDescription: "Ambient local profile",
             email: nil,
             plan: "team",
-            organizationLabel: "Design Org"
+            organizationLabel: "Design Org",
+            sourceKind: .backup,
+            ownershipMode: .quotaPilotManaged
         )
 
         XCTAssertEqual(account.identitySummary, "TEAM • Design Org")
+        XCTAssertEqual(account.sourceSummary, "Backup • Managed")
     }
 }

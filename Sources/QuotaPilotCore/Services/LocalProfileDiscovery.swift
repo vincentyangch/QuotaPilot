@@ -17,12 +17,16 @@ public struct LocalProfileDiscovery {
             .codex(
                 profileRootURL: homeURL.appendingPathComponent(".codex", isDirectory: true),
                 labelHint: "Codex Ambient",
-                sourceDescription: "Ambient local profile"
+                sourceDescription: "Ambient local profile",
+                sourceKind: .ambient,
+                ownershipMode: .externalLocal
             ),
             .claude(
                 profileRootURL: homeURL.appendingPathComponent(".claude", isDirectory: true),
                 labelHint: "Claude Ambient",
-                sourceDescription: "Ambient local profile"
+                sourceDescription: "Ambient local profile",
+                sourceKind: .ambient,
+                ownershipMode: .externalLocal
             ),
         ]
     }
@@ -76,7 +80,9 @@ public struct LocalProfileDiscovery {
             plan: plan,
             profileRootURL: candidate.profileRootURL,
             credentialsURL: candidate.credentialsURL,
-            sourceDescription: candidate.sourceDescription
+            sourceDescription: candidate.sourceDescription,
+            sourceKind: candidate.sourceKind,
+            ownershipMode: candidate.ownershipMode
         )
     }
 
@@ -124,7 +130,9 @@ public struct LocalProfileDiscovery {
             plan: plan,
             profileRootURL: candidate.profileRootURL,
             credentialsURL: candidate.credentialsURL,
-            sourceDescription: sourceDescription
+            sourceDescription: sourceDescription,
+            sourceKind: candidate.sourceKind,
+            ownershipMode: candidate.ownershipMode
         )
     }
 

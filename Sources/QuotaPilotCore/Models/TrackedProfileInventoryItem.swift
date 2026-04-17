@@ -8,6 +8,9 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
     public let identitySummary: String?
     public let profileRootPath: String
     public let sourceDescription: String
+    public let sourceKind: ProfileSourceKind
+    public let ownershipMode: ProfileOwnershipMode
+    public let sourceSummary: String
     public let isCurrentSelection: Bool
     public let hasLiveUsage: Bool
     public let liveRemainingPercent: Int?

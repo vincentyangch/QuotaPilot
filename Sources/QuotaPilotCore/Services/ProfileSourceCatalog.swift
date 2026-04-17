@@ -10,12 +10,16 @@ public enum ProfileSourceCatalog {
             .codex(
                 profileRootURL: homeURL.appendingPathComponent(".codex", isDirectory: true),
                 labelHint: "Codex Ambient",
-                sourceDescription: "Ambient local profile"
+                sourceDescription: "Ambient local profile",
+                sourceKind: .ambient,
+                ownershipMode: .externalLocal
             ),
             .claude(
                 profileRootURL: homeURL.appendingPathComponent(".claude", isDirectory: true),
                 labelHint: "Claude Ambient",
-                sourceDescription: "Ambient local profile"
+                sourceDescription: "Ambient local profile",
+                sourceKind: .ambient,
+                ownershipMode: .externalLocal
             ),
         ].filter { candidate in
             guard let preferredPath = preferredSelections[candidate.provider] else { return true }
@@ -30,13 +34,17 @@ public enum ProfileSourceCatalog {
                 return .codex(
                     profileRootURL: source.profileRootURL,
                     labelHint: source.label,
-                    sourceDescription: "Stored profile source"
+                    sourceDescription: source.sourceKind == .backup ? "QuotaPilot backup profile" : "Stored profile source",
+                    sourceKind: source.sourceKind,
+                    ownershipMode: source.ownershipMode
                 )
             case .claude:
                 return .claude(
                     profileRootURL: source.profileRootURL,
                     labelHint: source.label,
-                    sourceDescription: "Stored profile source"
+                    sourceDescription: source.sourceKind == .backup ? "QuotaPilot backup profile" : "Stored profile source",
+                    sourceKind: source.sourceKind,
+                    ownershipMode: source.ownershipMode
                 )
             }
         }

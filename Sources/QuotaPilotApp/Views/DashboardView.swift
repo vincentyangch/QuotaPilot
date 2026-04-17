@@ -117,6 +117,10 @@ struct DashboardView: View {
                                     .foregroundStyle(.secondary)
                             }
 
+                            Text(selectedAccount.sourceSummary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
                             HStack(spacing: 14) {
                                 ForEach(selectedAccount.windows) { window in
                                     VStack(alignment: .leading, spacing: 4) {
