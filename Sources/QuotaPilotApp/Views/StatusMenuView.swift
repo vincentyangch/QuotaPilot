@@ -35,6 +35,21 @@ struct StatusMenuView: View {
                 }
             }
 
+            if !self.model.automaticActivationRecoveryIssues.isEmpty {
+                Divider()
+
+                AutomaticActivationRecoverySectionView(
+                    issues: self.model.automaticActivationRecoveryIssues,
+                    isRefreshingUsage: self.model.isRefreshingUsage
+                ) {
+                    Task {
+                        await self.model.refreshLiveUsage()
+                    }
+                } onDismiss: { provider in
+                    self.model.dismissAutomaticActivationRecoveryIssue(for: provider)
+                }
+            }
+
             Divider()
 
             ActivityLogSectionView(entries: self.model.activityLogEntries, maxEntries: 4)

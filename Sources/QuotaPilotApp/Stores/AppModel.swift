@@ -29,6 +29,7 @@ final class AppModel {
 
     var accounts: [QuotaAccount]
     var activityLogEntries: [ActivityLogEntry]
+    var automaticActivationRecoveryIssues: [QuotaProvider: AutomaticActivationRecoveryIssue]
     var backgroundRefreshSettings: BackgroundRefreshSettings
     var currentProfileSelections: [QuotaProvider: String]
     var discoveredProfiles: [DiscoveredLocalProfile]
@@ -92,6 +93,7 @@ final class AppModel {
         }
         self.accounts = accounts
         self.activityLogEntries = activityLogEntries
+        self.automaticActivationRecoveryIssues = [:]
         self.backgroundRefreshSettings = backgroundRefreshSettingsStorage.load()
         self.currentProfileSelections = currentSelections
         self.discoveredProfiles = discoveredProfiles
@@ -172,8 +174,9 @@ final class AppModel {
         self.rebuildBackgroundRefreshLoop()
     }
 
-    func refreshLiveUsage() async {
-        guard !self.isRefreshingUsage else { return }
+    @discardableResult
+    func refreshLiveUsage(planPostRefreshActions: Bool = true) async -> AmbientUsageRefreshResult? {
+        guard !self.isRefreshingUsage else { return nil }
         self.isRefreshingUsage = true
         var pendingAutomaticActivations: [RecommendationActivationOption] = []
         var pendingConfirmationUpdates: [QuotaProvider: RecommendationActivationOption] = [:]
@@ -189,7 +192,11 @@ final class AppModel {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     for option in pendingAutomaticActivations {
-                        await self.activateProfile(provider: option.provider, profileRootPath: option.profileRootPath)
+                        await self.activateProfile(
+                            provider: option.provider,
+                            profileRootPath: option.profileRootPath,
+                            verificationOption: option
+                        )
                     }
                 }
             }
@@ -203,7 +210,7 @@ final class AppModel {
                 title: "Refresh skipped",
                 detail: self.lastUsageRefreshSummary
             )
-            return
+            return nil
         }
 
         let result = await self.ambientUsageLoader.loadAccounts(
@@ -213,6 +220,7 @@ final class AppModel {
 
         if !result.accounts.isEmpty {
             self.accounts = self.mergedAccounts(liveAccounts: result.accounts)
+            self.reconcileAutomaticActivationRecoveryIssues(refreshedAccounts: result.accounts)
         }
 
         if result.accounts.isEmpty {
@@ -242,34 +250,38 @@ final class AppModel {
         }
 
         self.persistWidgetSnapshot()
-        let switchPlan = self.planSwitchActions()
-        pendingAutomaticActivations = switchPlan.automaticActivations
-        pendingConfirmationUpdates = Dictionary(uniqueKeysWithValues: switchPlan.confirmationsToPresent.map { ($0.provider, $0) })
-        if !switchPlan.confirmationsToPresent.isEmpty {
-            self.lastProfileActionSummary = "Confirmation needed for \(switchPlan.confirmationsToPresent.count) recommended profile(s)."
-            for option in switchPlan.confirmationsToPresent {
-                self.recordActivity(
-                    kind: .confirmationQueued,
-                    provider: option.provider,
-                    title: "Confirmation needed",
-                    detail: "Review whether to switch to \(option.accountLabel)."
-                )
+        if planPostRefreshActions {
+            let switchPlan = self.planSwitchActions()
+            pendingAutomaticActivations = switchPlan.automaticActivations
+            pendingConfirmationUpdates = Dictionary(uniqueKeysWithValues: switchPlan.confirmationsToPresent.map { ($0.provider, $0) })
+            if !switchPlan.confirmationsToPresent.isEmpty {
+                self.lastProfileActionSummary = "Confirmation needed for \(switchPlan.confirmationsToPresent.count) recommended profile(s)."
+                for option in switchPlan.confirmationsToPresent {
+                    self.recordActivity(
+                        kind: .confirmationQueued,
+                        provider: option.provider,
+                        title: "Confirmation needed",
+                        detail: "Review whether to switch to \(option.accountLabel)."
+                    )
+                }
+            }
+
+            if pendingAutomaticActivations.isEmpty {
+                await self.syncRecommendationAlerts()
+            } else {
+                self.lastProfileActionSummary = "Auto-activating \(pendingAutomaticActivations.count) recommended profile(s)."
+                for option in pendingAutomaticActivations {
+                    self.recordActivity(
+                        kind: .autoActivationQueued,
+                        provider: option.provider,
+                        title: "Auto-activation queued",
+                        detail: "QuotaPilot will activate \(option.accountLabel) after refresh."
+                    )
+                }
             }
         }
 
-        if pendingAutomaticActivations.isEmpty {
-            await self.syncRecommendationAlerts()
-        } else {
-            self.lastProfileActionSummary = "Auto-activating \(pendingAutomaticActivations.count) recommended profile(s)."
-            for option in pendingAutomaticActivations {
-                self.recordActivity(
-                    kind: .autoActivationQueued,
-                    provider: option.provider,
-                    title: "Auto-activation queued",
-                    detail: "QuotaPilot will activate \(option.accountLabel) after refresh."
-                )
-            }
-        }
+        return result
     }
 
     func updateSwitchThreshold(_ value: Int) {
@@ -377,6 +389,13 @@ final class AppModel {
     }
 
     func activateProfile(_ profile: DiscoveredLocalProfile) async {
+        await self.activateProfile(profile, verificationOption: nil)
+    }
+
+    private func activateProfile(
+        _ profile: DiscoveredLocalProfile,
+        verificationOption: RecommendationActivationOption?
+    ) async {
         self.isActivatingProfile = true
         defer { self.isActivatingProfile = false }
 
@@ -402,7 +421,13 @@ final class AppModel {
                 title: "Activated profile",
                 detail: "Activated \(profile.label) for \(profile.provider.displayName)."
             )
-            await self.refreshLiveUsage()
+            let refreshResult = await self.refreshLiveUsage(planPostRefreshActions: verificationOption == nil)
+            if let verificationOption {
+                self.resolveAutomaticActivationVerification(
+                    option: verificationOption,
+                    refreshResult: refreshResult
+                )
+            }
         } catch {
             self.lastProfileActionSummary = "Could not activate \(profile.label): \(error.localizedDescription)"
             self.recordActivity(
@@ -415,6 +440,18 @@ final class AppModel {
     }
 
     func activateProfile(provider: QuotaProvider, profileRootPath: String) async {
+        await self.activateProfile(
+            provider: provider,
+            profileRootPath: profileRootPath,
+            verificationOption: nil
+        )
+    }
+
+    private func activateProfile(
+        provider: QuotaProvider,
+        profileRootPath: String,
+        verificationOption: RecommendationActivationOption?
+    ) async {
         guard let profile = self.discoveredProfiles.first(where: {
             $0.provider == provider
                 && $0.profileRootURL.standardizedFileURL.path
@@ -423,7 +460,7 @@ final class AppModel {
             self.lastProfileActionSummary = "Could not find that profile to activate."
             return
         }
-        await self.activateProfile(profile)
+        await self.activateProfile(profile, verificationOption: verificationOption)
     }
 
     func activateRecommendedProfile(for provider: QuotaProvider) async {
@@ -559,6 +596,10 @@ final class AppModel {
         }
     }
 
+    func dismissAutomaticActivationRecoveryIssue(for provider: QuotaProvider) {
+        guard self.automaticActivationRecoveryIssues.removeValue(forKey: provider) != nil else { return }
+    }
+
     private func rebuildBackgroundRefreshLoop() {
         self.backgroundRefreshTask?.cancel()
         self.backgroundRefreshTask = nil
@@ -599,9 +640,12 @@ final class AppModel {
 
     private func planSwitchActions() -> SwitchActionPlan {
         let previousState = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
+        let activationOptionsByProvider = self.activationOptionsByProvider.filter { provider, _ in
+            self.automaticActivationRecoveryIssues[provider] == nil
+        }
         let plan = SwitchActionPlanner.makePlan(
             mode: self.switchActionMode,
-            activationOptionsByProvider: self.activationOptionsByProvider,
+            activationOptionsByProvider: activationOptionsByProvider,
             recommendationCandidatesByProvider: self.recommendationCandidatesByProvider,
             handledRecommendationIDsByProvider: previousState,
             pendingConfirmationIDsByProvider: Dictionary(
@@ -642,5 +686,37 @@ final class AppModel {
         self.activityLogEntries.insert(entry, at: 0)
         let entriesForPersistence = self.activityLogEntries.sorted { $0.timestamp < $1.timestamp }
         try? self.activityLogStore.saveEntries(entriesForPersistence)
+    }
+
+    private func reconcileAutomaticActivationRecoveryIssues(refreshedAccounts: [QuotaAccount]) {
+        self.automaticActivationRecoveryIssues = self.automaticActivationRecoveryIssues.filter { _, issue in
+            !AutomaticActivationVerifier.isRecovered(
+                issue: issue,
+                refreshedAccounts: refreshedAccounts
+            )
+        }
+    }
+
+    private func resolveAutomaticActivationVerification(
+        option: RecommendationActivationOption,
+        refreshResult: AmbientUsageRefreshResult?
+    ) {
+        let issue = AutomaticActivationVerifier.verify(
+            option: option,
+            refreshedAccounts: refreshResult?.accounts ?? []
+        )
+
+        if let issue {
+            self.automaticActivationRecoveryIssues[option.provider] = issue
+            self.lastProfileActionSummary = "Recovery needed for \(option.provider.displayName)."
+            self.recordActivity(
+                kind: .verificationFailed,
+                provider: option.provider,
+                title: "Verification failed",
+                detail: issue.detail
+            )
+        } else {
+            self.automaticActivationRecoveryIssues.removeValue(forKey: option.provider)
+        }
     }
 }

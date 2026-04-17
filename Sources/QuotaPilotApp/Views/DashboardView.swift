@@ -76,6 +76,19 @@ struct DashboardView: View {
                         }
                     }
 
+                    if !self.model.automaticActivationRecoveryIssues.isEmpty {
+                        AutomaticActivationRecoverySectionView(
+                            issues: self.model.automaticActivationRecoveryIssues,
+                            isRefreshingUsage: self.model.isRefreshingUsage
+                        ) {
+                            Task {
+                                await self.model.refreshLiveUsage()
+                            }
+                        } onDismiss: { provider in
+                            self.model.dismissAutomaticActivationRecoveryIssue(for: provider)
+                        }
+                    }
+
                     ActivityLogSectionView(entries: self.model.activityLogEntries)
 
                     if let selectedAccount {

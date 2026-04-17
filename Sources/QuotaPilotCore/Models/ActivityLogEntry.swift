@@ -10,6 +10,7 @@ public enum ActivityLogKind: String, Codable, Equatable, Sendable {
     case activationSucceeded
     case activationFailed
     case autoActivationQueued
+    case verificationFailed
 }
 
 public struct ActivityLogEntry: Identifiable, Codable, Equatable, Sendable {
