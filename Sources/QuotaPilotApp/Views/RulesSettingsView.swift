@@ -9,11 +9,242 @@ struct RulesSettingsView: View {
     @State private var draftPath = ""
     @State private var pendingRemovalSource: StoredProfileSource?
 
+    private var providersNeedingRecovery: [ProviderHealthSummary] {
+        self.model.providerHealthSummaries
+            .filter { $0.state != .healthy }
+            .sorted { $0.provider.displayName < $1.provider.displayName }
+    }
+
+    private var trackedProfilesNeedingRecovery: [TrackedProfileInventoryItem] {
+        self.model.trackedProfileInventoryItems
+            .filter { $0.recoveryActionKind != nil || $0.lastErrorDetail != nil }
+            .sorted { lhs, rhs in
+                if lhs.provider != rhs.provider {
+                    return lhs.provider.displayName < rhs.provider.displayName
+                }
+                return lhs.label < rhs.label
+            }
+    }
+
+    private var automaticRecoveryIssues: [AutomaticActivationRecoveryIssue] {
+        self.model.automaticActivationRecoveryIssues.values
+            .sorted { lhs, rhs in
+                if lhs.provider != rhs.provider {
+                    return lhs.provider.displayName < rhs.provider.displayName
+                }
+                return lhs.accountLabel < rhs.accountLabel
+            }
+    }
+
+    private var recoveryCenterIsEmpty: Bool {
+        self.providersNeedingRecovery.isEmpty
+            && self.trackedProfilesNeedingRecovery.isEmpty
+            && self.automaticRecoveryIssues.isEmpty
+            && self.model.latestBackupRestoreEntry == nil
+    }
+
     private func chooseProfileFolder() {
         guard let selectedPath = ProfileSourceFolderPicker.chooseFolder(startingAt: self.draftPath) else { return }
         self.draftPath = selectedPath
         if self.draftLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             self.draftLabel = URL(fileURLWithPath: selectedPath, isDirectory: true).lastPathComponent
+        }
+    }
+
+    private func refreshUsage() {
+        Task {
+            await self.model.refreshLiveUsage()
+        }
+    }
+
+    private func activateProfile(provider: QuotaProvider, profileRootPath: String) {
+        Task {
+            await self.model.activateProfile(provider: provider, profileRootPath: profileRootPath)
+        }
+    }
+
+    private func triggerTrackedRecovery(for item: TrackedProfileInventoryItem) {
+        guard let recoveryActionKind = item.recoveryActionKind else { return }
+
+        switch recoveryActionKind {
+        case .refreshUsage:
+            self.refreshUsage()
+        case .openSettings:
+            break
+        case .restoreManagedBackup:
+            guard let profileRootPath = item.recoveryActionTargetProfileRootPath else { return }
+            self.activateProfile(provider: item.provider, profileRootPath: profileRootPath)
+        }
+    }
+
+    private var recoveryCenterSection: some View {
+        Section("Recovery Center") {
+            if self.recoveryCenterIsEmpty {
+                Text("No recovery actions are needed right now.")
+                    .foregroundStyle(.secondary)
+            } else {
+                if let latestBackupRestoreEntry = self.model.latestBackupRestoreEntry {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Latest backup restore")
+                            .fontWeight(.semibold)
+                        Text(latestBackupRestoreEntry.detail)
+                            .foregroundStyle(.secondary)
+                        Text(Self.timestampFormatter.string(from: latestBackupRestoreEntry.timestamp))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                if !self.providersNeedingRecovery.isEmpty {
+                    ForEach(self.providersNeedingRecovery) { summary in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 8) {
+                                ProviderIconView(provider: summary.provider, size: 14)
+                                Text(summary.provider.displayName)
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Text(self.healthLabel(for: summary.state))
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(self.healthColor(for: summary.state))
+                            }
+
+                            Text(summary.summary)
+                                .foregroundStyle(.secondary)
+
+                            if let affectedProfilesSummary = summary.affectedProfilesSummary {
+                                Text(affectedProfilesSummary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let detail = summary.detail {
+                                Text(detail)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if !summary.recoveryItems.isEmpty {
+                                ForEach(summary.recoveryItems, id: \.self) { item in
+                                    Text(item)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            HStack(spacing: 10) {
+                                if let recoveryBackupLabel = summary.recoveryBackupLabel,
+                                   let recoveryBackupProfileRootPath = summary.recoveryBackupProfileRootPath
+                                {
+                                    Button(self.model.isActivatingProfile ? "Activating..." : "Restore \(recoveryBackupLabel)") {
+                                        self.activateProfile(
+                                            provider: summary.provider,
+                                            profileRootPath: recoveryBackupProfileRootPath
+                                        )
+                                    }
+                                    .disabled(self.model.isActivatingProfile)
+                                }
+
+                                Button(self.model.isRefreshingUsage ? "Refreshing..." : "Retry Refresh") {
+                                    self.refreshUsage()
+                                }
+                                .disabled(self.model.isRefreshingUsage)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
+                if !self.trackedProfilesNeedingRecovery.isEmpty {
+                    ForEach(self.trackedProfilesNeedingRecovery) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 8) {
+                                ProviderIconView(provider: item.provider, size: 14)
+                                Text(item.label)
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Text(item.lifecycleTitle)
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(self.healthColor(for: item.lifecycleState))
+                            }
+
+                            if let refreshIssueSummary = item.refreshIssueSummary {
+                                Text(refreshIssueSummary)
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            } else if let lifecycleDetail = item.lifecycleDetail {
+                                Text(lifecycleDetail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let lastErrorDetail = item.lastErrorDetail {
+                                Text(lastErrorDetail)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text(item.lifecycleNextAction)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
+                            if let recoveryActionKind = item.recoveryActionKind,
+                               let recoveryActionTitle = item.recoveryActionTitle
+                            {
+                                switch recoveryActionKind {
+                                case .refreshUsage, .restoreManagedBackup:
+                                    Button(
+                                        self.model.isActivatingProfile && recoveryActionKind == .restoreManagedBackup
+                                            ? "Activating..."
+                                            : (self.model.isRefreshingUsage && recoveryActionKind == .refreshUsage
+                                                ? "Refreshing..."
+                                                : recoveryActionTitle)
+                                    ) {
+                                        self.triggerTrackedRecovery(for: item)
+                                    }
+                                    .disabled(
+                                        (recoveryActionKind == .refreshUsage && self.model.isRefreshingUsage)
+                                            || (recoveryActionKind == .restoreManagedBackup && self.model.isActivatingProfile)
+                                    )
+                                case .openSettings:
+                                    Text("Review the profile and source sections below to repair this account.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
+                if !self.automaticRecoveryIssues.isEmpty {
+                    ForEach(self.automaticRecoveryIssues) { issue in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 8) {
+                                ProviderIconView(provider: issue.provider, size: 14)
+                                Text(issue.accountLabel)
+                                    .fontWeight(.semibold)
+                            }
+
+                            Text(issue.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 10) {
+                                Button(self.model.isRefreshingUsage ? "Refreshing..." : "Retry Refresh") {
+                                    self.refreshUsage()
+                                }
+                                .disabled(self.model.isRefreshingUsage)
+
+                                Button("Dismiss") {
+                                    self.model.dismissAutomaticActivationRecoveryIssue(for: issue.provider)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
         }
     }
 
@@ -40,9 +271,7 @@ struct RulesSettingsView: View {
                             } else {
                                 Button("Set Current") {
                                     self.model.selectCurrentProfile(profile)
-                                    Task {
-                                        await self.model.refreshLiveUsage()
-                                    }
+                                    self.refreshUsage()
                                 }
                             }
                             if let plan = profile.plan {
@@ -81,9 +310,7 @@ struct RulesSettingsView: View {
             }
 
             Button(self.model.isRefreshingUsage ? "Refreshing local usage..." : "Refresh live usage from local profiles") {
-                Task {
-                    await self.model.refreshLiveUsage()
-                }
+                self.refreshUsage()
             }
             .disabled(self.model.isRefreshingUsage)
 
@@ -129,6 +356,7 @@ struct RulesSettingsView: View {
             }
 
             TextField("Label", text: self.$draftLabel)
+
             HStack(spacing: 8) {
                 TextField("Profile root path", text: self.$draftPath)
                     .textFieldStyle(.roundedBorder)
@@ -191,25 +419,47 @@ struct RulesSettingsView: View {
             Section("Switching Rules") {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Switch threshold")
-                    Stepper("\(self.thresholdBinding.wrappedValue)% remaining", value: self.thresholdBinding, in: 0...100)
+                    Stepper(
+                        "\(self.thresholdBinding.wrappedValue)% remaining",
+                        value: self.thresholdBinding,
+                        in: 0...100
+                    )
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Minimum score advantage")
-                    Stepper("\(self.minimumAdvantageBinding.wrappedValue) points", value: self.minimumAdvantageBinding, in: 0...100)
+                    Stepper(
+                        "\(self.minimumAdvantageBinding.wrappedValue) points",
+                        value: self.minimumAdvantageBinding,
+                        in: 0...100
+                    )
                 }
             }
 
             Section("Scoring Weights") {
-                Stepper("Remaining quota weight: \(self.remainingWeightBinding.wrappedValue)", value: self.remainingWeightBinding, in: 0...5)
-                Stepper("Reset urgency weight: \(self.resetWeightBinding.wrappedValue)", value: self.resetWeightBinding, in: 0...5)
-                Stepper("Profile priority weight: \(self.priorityWeightBinding.wrappedValue)", value: self.priorityWeightBinding, in: 0...5)
+                Stepper(
+                    "Remaining quota weight: \(self.remainingWeightBinding.wrappedValue)",
+                    value: self.remainingWeightBinding,
+                    in: 0...5
+                )
+                Stepper(
+                    "Reset urgency weight: \(self.resetWeightBinding.wrappedValue)",
+                    value: self.resetWeightBinding,
+                    in: 0...5
+                )
+                Stepper(
+                    "Profile priority weight: \(self.priorityWeightBinding.wrappedValue)",
+                    value: self.priorityWeightBinding,
+                    in: 0...5
+                )
             }
 
             Section("Scope") {
                 Text("These rules currently apply separately within Codex and Claude, so each provider keeps its own best active account.")
                     .foregroundStyle(.secondary)
             }
+
+            self.recoveryCenterSection
 
             Section("Switch Behavior") {
                 Picker(
@@ -228,7 +478,10 @@ struct RulesSettingsView: View {
                     .foregroundStyle(.secondary)
 
                 if !self.model.pendingSwitchConfirmations.isEmpty {
-                    ForEach(Array(self.model.pendingSwitchConfirmations.keys), id: \.self) { provider in
+                    ForEach(
+                        Array(self.model.pendingSwitchConfirmations.keys).sorted(by: { $0.displayName < $1.displayName }),
+                        id: \.self
+                    ) { provider in
                         if let option = self.model.pendingSwitchConfirmations[provider] {
                             HStack {
                                 Text("Pending \(provider.displayName): \(option.accountLabel)")
@@ -241,31 +494,9 @@ struct RulesSettingsView: View {
                                 }
                                 Button("Dismiss") {
                                     self.model.dismissPendingSwitch(for: provider)
-        }
-        .confirmationDialog(
-            self.pendingRemovalSource?.removalConfirmationTitle ?? "Remove stored profile source?",
-            isPresented: Binding(
-                get: { self.pendingRemovalSource != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        self.pendingRemovalSource = nil
-                    }
-                }
-            ),
-            presenting: self.pendingRemovalSource
-        ) { source in
-            Button(source.removalActionTitle, role: .destructive) {
-                self.model.removeStoredProfileSource(id: source.id)
-                self.pendingRemovalSource = nil
-            }
-            Button("Cancel", role: .cancel) {
-                self.pendingRemovalSource = nil
-            }
-        } message: { source in
-            Text(source.removalConfirmationDetail)
-        }
-    }
-}
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -320,8 +551,76 @@ struct RulesSettingsView: View {
                 }
             }
         }
+        .confirmationDialog(
+            self.pendingRemovalSource?.removalConfirmationTitle ?? "Remove stored profile source?",
+            isPresented: Binding(
+                get: { self.pendingRemovalSource != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        self.pendingRemovalSource = nil
+                    }
+                }
+            ),
+            presenting: self.pendingRemovalSource
+        ) { source in
+            Button(source.removalActionTitle, role: .destructive) {
+                self.model.removeStoredProfileSource(id: source.id)
+                self.pendingRemovalSource = nil
+            }
+            Button("Cancel", role: .cancel) {
+                self.pendingRemovalSource = nil
+            }
+        } message: { source in
+            Text(source.removalConfirmationDetail)
+        }
         .formStyle(.grouped)
-        .frame(width: 460)
+        .frame(width: 520)
         .padding(20)
     }
+
+    private func healthLabel(for state: ProviderHealthState) -> String {
+        switch state {
+        case .healthy:
+            return "Healthy"
+        case .degraded:
+            return "Degraded"
+        case .unavailable:
+            return "Unavailable"
+        case .notConfigured:
+            return "Not Configured"
+        }
+    }
+
+    private func healthColor(for state: ProviderHealthState) -> Color {
+        switch state {
+        case .healthy:
+            return .green
+        case .degraded:
+            return .orange
+        case .unavailable:
+            return .red
+        case .notConfigured:
+            return .secondary
+        }
+    }
+
+    private func healthColor(for state: TrackedProfileLifecycleState) -> Color {
+        switch state {
+        case .ready:
+            return .green
+        case .awaitingRefresh:
+            return .secondary
+        case .credentialsMissing, .authExpired:
+            return .red
+        case .sessionUnavailable, .usageReadFailed:
+            return .orange
+        }
+    }
+
+    private static let timestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }
