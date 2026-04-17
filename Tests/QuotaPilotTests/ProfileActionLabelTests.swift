@@ -63,6 +63,7 @@ final class ProfileActionLabelTests: XCTestCase {
             item.deletionConfirmationDetail,
             "QuotaPilot will permanently delete Codex Ambient Backup from its managed backup storage."
         )
+        XCTAssertEqual(item.restoreConfirmationTitle, "Restore managed backup?")
     }
 
     func testExternalProfilesKeepStandardActionLabels() {
@@ -163,10 +164,46 @@ final class ProfileActionLabelTests: XCTestCase {
             capabilitySummary: "Usage, Recommend, Auto-Switch, Desktop Handoff",
             lastRefreshSummary: "Updated 5 min ago",
             lastErrorDetail: "Codex usage request failed with HTTP 401.",
-            statusSummary: "62% remaining"
+            statusSummary: "62% remaining",
+            recoveryActionTargetProfileRootPath: "/tmp/codex-backup",
+            recoveryActionBackupLabel: "Codex Ambient Backup"
         )
 
         XCTAssertEqual(item.refreshIssueSummary, "Latest refresh failed. QuotaPilot is showing the previous snapshot for this profile.")
+        XCTAssertEqual(
+            item.restoreConfirmationDetail,
+            "QuotaPilot will replace the active Codex credentials with Codex Ambient Backup, then refresh live usage."
+        )
+        XCTAssertEqual(item.recoveryActionKind, .restoreManagedBackup)
+        XCTAssertEqual(item.recoveryActionTitle, "Restore Codex Ambient Backup")
+    }
+
+    func testTrackedProfileStaleRefreshWithoutBackupStillPrefersRetryRefresh() {
+        let item = TrackedProfileInventoryItem(
+            provider: .codex,
+            label: "Codex Work",
+            email: nil,
+            plan: nil,
+            identitySummary: nil,
+            profileRootPath: "/tmp/codex-work",
+            sourceDescription: "Stored profile source",
+            sourceKind: .stored,
+            ownershipMode: .externalLocal,
+            sourceSummary: "Stored • External",
+            isCurrentSelection: true,
+            hasLiveUsage: true,
+            liveRemainingPercent: 62,
+            lifecycleState: .ready,
+            lifecycleTitle: "Ready",
+            lifecycleDetail: "Live usage is available for this profile.",
+            lifecycleNextAction: "QuotaPilot will keep refreshing this profile automatically.",
+            capabilitySummary: "Usage, Recommend, Auto-Switch, Desktop Handoff",
+            lastRefreshSummary: "Updated 5 min ago",
+            lastErrorDetail: "Codex usage request failed with HTTP 401.",
+            statusSummary: "62% remaining"
+        )
+
+        XCTAssertNil(item.restoreConfirmationDetail)
         XCTAssertEqual(item.recoveryActionKind, .refreshUsage)
         XCTAssertEqual(item.recoveryActionTitle, "Retry Refresh")
     }

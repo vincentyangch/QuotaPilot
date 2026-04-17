@@ -10,6 +10,7 @@ struct TrackedProfileInventorySectionView: View {
     let onRestoreManagedBackup: (TrackedProfileInventoryItem) -> Void
     let onDelete: (TrackedProfileInventoryItem) -> Void
 
+    @State private var pendingRestoreItem: TrackedProfileInventoryItem?
     @State private var pendingDeletionItem: TrackedProfileInventoryItem?
 
     var body: some View {
@@ -107,7 +108,7 @@ struct TrackedProfileInventorySectionView: View {
                                     }
                                 case .restoreManagedBackup:
                                     Button(self.isActivatingProfile ? "Activating..." : recoveryActionTitle) {
-                                        self.onRestoreManagedBackup(item)
+                                        self.pendingRestoreItem = item
                                     }
                                     .disabled(self.isActivatingProfile)
                                 }
@@ -144,6 +145,28 @@ struct TrackedProfileInventorySectionView: View {
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
+        }
+        .confirmationDialog(
+            self.pendingRestoreItem?.restoreConfirmationTitle ?? "Restore managed backup?",
+            isPresented: Binding(
+                get: { self.pendingRestoreItem != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        self.pendingRestoreItem = nil
+                    }
+                }
+            ),
+            presenting: self.pendingRestoreItem
+        ) { item in
+            Button(item.recoveryActionTitle ?? "Restore Backup") {
+                self.onRestoreManagedBackup(item)
+                self.pendingRestoreItem = nil
+            }
+            Button("Cancel", role: .cancel) {
+                self.pendingRestoreItem = nil
+            }
+        } message: { item in
+            Text(item.restoreConfirmationDetail ?? "QuotaPilot will restore this managed backup.")
         }
         .confirmationDialog(
             self.pendingDeletionItem?.deletionConfirmationTitle ?? "Delete managed backup?",

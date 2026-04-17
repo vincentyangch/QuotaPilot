@@ -46,6 +46,15 @@ public struct ProviderHealthSummary: Equatable, Sendable, Identifiable {
         self.nextAutomaticAction = nextAutomaticAction
         self.manualAction = manualAction
     }
+
+    public var restoreConfirmationTitle: String {
+        "Restore managed backup?"
+    }
+
+    public var restoreConfirmationDetail: String? {
+        guard let recoveryBackupLabel else { return nil }
+        return "QuotaPilot will replace the active \(self.provider.displayName) credentials with \(recoveryBackupLabel), then refresh live usage."
+    }
 }
 
 public enum ProviderHealthSummaryBuilder {

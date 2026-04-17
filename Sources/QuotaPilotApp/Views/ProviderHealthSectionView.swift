@@ -8,6 +8,8 @@ struct ProviderHealthSectionView: View {
     let onRefresh: () -> Void
     let onRestoreManagedBackup: (QuotaProvider, String) -> Void
 
+    @State private var pendingRestoreSummary: ProviderHealthSummary?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Provider Health")
@@ -72,7 +74,7 @@ struct ProviderHealthSectionView: View {
                                let recoveryBackupLabel = summary.recoveryBackupLabel
                             {
                                 Button(self.isActivatingProfile ? "Activating..." : "Restore \(recoveryBackupLabel)") {
-                                    self.onRestoreManagedBackup(summary.provider, recoveryBackupProfileRootPath)
+                                    self.pendingRestoreSummary = summary
                                 }
                                 .disabled(self.isActivatingProfile)
                             }
@@ -91,6 +93,32 @@ struct ProviderHealthSectionView: View {
                 .padding(14)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
+        }
+        .confirmationDialog(
+            self.pendingRestoreSummary?.restoreConfirmationTitle ?? "Restore managed backup?",
+            isPresented: Binding(
+                get: { self.pendingRestoreSummary != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        self.pendingRestoreSummary = nil
+                    }
+                }
+            ),
+            presenting: self.pendingRestoreSummary
+        ) { summary in
+            if let recoveryBackupProfileRootPath = summary.recoveryBackupProfileRootPath,
+               let recoveryBackupLabel = summary.recoveryBackupLabel
+            {
+                Button("Restore \(recoveryBackupLabel)") {
+                    self.onRestoreManagedBackup(summary.provider, recoveryBackupProfileRootPath)
+                    self.pendingRestoreSummary = nil
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                self.pendingRestoreSummary = nil
+            }
+        } message: { summary in
+            Text(summary.restoreConfirmationDetail ?? "QuotaPilot will restore this managed backup.")
         }
     }
 

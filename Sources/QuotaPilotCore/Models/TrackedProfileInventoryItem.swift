@@ -104,6 +104,15 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
         return "Latest refresh failed. QuotaPilot is showing the previous snapshot for this profile."
     }
 
+    public var restoreConfirmationTitle: String {
+        "Restore managed backup?"
+    }
+
+    public var restoreConfirmationDetail: String? {
+        guard let recoveryActionBackupLabel else { return nil }
+        return "QuotaPilot will replace the active \(self.provider.displayName) credentials with \(recoveryActionBackupLabel), then refresh live usage."
+    }
+
     public var recoveryActionKind: TrackedProfileRecoveryActionKind? {
         if self.recoveryActionTargetProfileRootPath != nil {
             return .restoreManagedBackup
