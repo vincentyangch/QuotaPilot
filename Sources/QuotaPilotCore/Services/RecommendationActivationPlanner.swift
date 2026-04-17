@@ -1,26 +1,36 @@
 import Foundation
 
+public enum RecommendationActivationStatus: Equatable, Sendable {
+    case alreadyActive
+    case unavailableOnThisMac
+    case activatable
+}
+
 public struct RecommendationActivationOption: Equatable, Sendable {
     public let provider: QuotaProvider
     public let accountID: UUID
     public let accountLabel: String
     public let profileRootPath: String
-    public let isActivatable: Bool
+    public let status: RecommendationActivationStatus
     public let reason: String
+
+    public var isActivatable: Bool {
+        self.status == .activatable
+    }
 
     public init(
         provider: QuotaProvider,
         accountID: UUID,
         accountLabel: String,
         profileRootPath: String,
-        isActivatable: Bool,
+        status: RecommendationActivationStatus,
         reason: String
     ) {
         self.provider = provider
         self.accountID = accountID
         self.accountLabel = accountLabel
         self.profileRootPath = profileRootPath
-        self.isActivatable = isActivatable
+        self.status = status
         self.reason = reason
     }
 }
@@ -51,7 +61,7 @@ public enum RecommendationActivationPlanner {
                 accountID: recommendedAccount.id,
                 accountLabel: recommendedAccount.label,
                 profileRootPath: standardizedProfilePath,
-                isActivatable: false,
+                status: .alreadyActive,
                 reason: "The recommended profile is already active."
             )
         }
@@ -67,7 +77,7 @@ public enum RecommendationActivationPlanner {
                 accountID: recommendedAccount.id,
                 accountLabel: recommendedAccount.label,
                 profileRootPath: standardizedProfilePath,
-                isActivatable: false,
+                status: .unavailableOnThisMac,
                 reason: "The recommended profile is not currently discovered on this Mac."
             )
         }
@@ -77,7 +87,7 @@ public enum RecommendationActivationPlanner {
             accountID: recommendedAccount.id,
             accountLabel: recommendedAccount.label,
             profileRootPath: standardizedProfilePath,
-            isActivatable: true,
+            status: .activatable,
             reason: "Ready to activate the recommended profile."
         )
     }

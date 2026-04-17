@@ -8,7 +8,7 @@ final class AutomaticActivationVerifierTests: XCTestCase {
             accountID: UUID(),
             accountLabel: "Codex Work",
             profileRootPath: "/tmp/codex-work",
-            isActivatable: true,
+            status: .activatable,
             reason: "Ready"
         )
 
@@ -37,7 +37,7 @@ final class AutomaticActivationVerifierTests: XCTestCase {
             accountID: UUID(),
             accountLabel: "Claude Max",
             profileRootPath: "/tmp/claude-max",
-            isActivatable: true,
+            status: .activatable,
             reason: "Ready"
         )
 

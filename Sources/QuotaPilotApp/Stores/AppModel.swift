@@ -130,6 +130,14 @@ final class AppModel {
         )
     }
 
+    func guidedDesktopHandoffPlan(for provider: QuotaProvider) -> GuidedDesktopHandoffPlan? {
+        GuidedDesktopHandoffPlanner.makePlan(
+            recommendation: self.recommendation(for: provider),
+            activationOption: self.recommendationActivationOption(for: provider),
+            switchActionMode: self.switchActionMode
+        )
+    }
+
     var recommendedAccountIDs: Set<UUID> {
         Set(self.providerRecommendations.compactMap(\.recommendedAccount?.id))
     }

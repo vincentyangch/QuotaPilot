@@ -50,6 +50,7 @@ final class RecommendationActivationPlannerTests: XCTestCase {
         XCTAssertEqual(option?.provider, .codex)
         XCTAssertEqual(option?.profileRootPath, "/Users/tester/.quotapilot/codex-better")
         XCTAssertEqual(option?.accountLabel, "better@example.com")
+        XCTAssertEqual(option?.status, .activatable)
         XCTAssertEqual(option?.reason, "Ready to activate the recommended profile.")
         XCTAssertEqual(option?.isActivatable, true)
     }
@@ -95,6 +96,7 @@ final class RecommendationActivationPlannerTests: XCTestCase {
         )
 
         XCTAssertEqual(option?.provider, .claude)
+        XCTAssertEqual(option?.status, .unavailableOnThisMac)
         XCTAssertEqual(option?.isActivatable, false)
         XCTAssertEqual(option?.reason, "The recommended profile is not currently discovered on this Mac.")
     }

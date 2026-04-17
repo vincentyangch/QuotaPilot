@@ -42,6 +42,7 @@ struct DashboardView: View {
                             RecommendationCard(
                                 recommendation: recommendation,
                                 activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
+                                guidedHandoffPlan: self.model.guidedDesktopHandoffPlan(for: recommendation.provider),
                                 isActivatingProfile: self.model.isActivatingProfile
                             ) {
                                 Task {

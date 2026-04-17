@@ -8,7 +8,7 @@ final class SwitchActionPlannerTests: XCTestCase {
             accountID: UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID(),
             accountLabel: "Codex Work",
             profileRootPath: "/tmp/codex-work",
-            isActivatable: true,
+            status: .activatable,
             reason: "Ready"
         )
         let candidate = RecommendationAlertCandidate(
@@ -36,7 +36,7 @@ final class SwitchActionPlannerTests: XCTestCase {
             accountID: UUID(uuidString: "00000000-0000-0000-0000-000000000002") ?? UUID(),
             accountLabel: "Claude Max",
             profileRootPath: "/tmp/claude-max",
-            isActivatable: true,
+            status: .activatable,
             reason: "Ready"
         )
         let candidate = RecommendationAlertCandidate(
@@ -64,7 +64,7 @@ final class SwitchActionPlannerTests: XCTestCase {
             accountID: UUID(uuidString: "00000000-0000-0000-0000-000000000003") ?? UUID(),
             accountLabel: "Claude Team",
             profileRootPath: "/tmp/claude-team",
-            isActivatable: true,
+            status: .activatable,
             reason: "Ready"
         )
         let candidate = RecommendationAlertCandidate(

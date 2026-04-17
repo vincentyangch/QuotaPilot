@@ -4,6 +4,7 @@ import QuotaPilotCore
 struct RecommendationCard: View {
     let recommendation: RecommendationEngine.ProviderRecommendation
     let activationOption: RecommendationActivationOption?
+    let guidedHandoffPlan: GuidedDesktopHandoffPlan?
     let isActivatingProfile: Bool
     let onActivateRecommended: (() -> Void)?
 
@@ -53,19 +54,65 @@ struct RecommendationCard: View {
             if let activationOption {
                 Divider()
 
-                HStack(alignment: .center, spacing: 12) {
+                if activationOption.isActivatable {
+                    HStack(alignment: .center, spacing: 12) {
+                        Text(activationOption.reason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        if let onActivateRecommended {
+                            Button(self.isActivatingProfile ? "Activating..." : "Activate Recommended") {
+                                onActivateRecommended()
+                            }
+                            .disabled(self.isActivatingProfile)
+                        }
+                    }
+                } else if let guidedHandoffPlan {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Desktop Handoff Required")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Text(guidedHandoffPlan.summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if let targetProfileRootPath = guidedHandoffPlan.targetProfileRootPath {
+                            Text(targetProfileRootPath)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(Array(guidedHandoffPlan.steps.enumerated()), id: \.offset) { index, step in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text("\(index + 1).")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text(step)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        Text(guidedHandoffPlan.nextAutomaticAction)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                        if guidedHandoffPlan.suggestsOpeningSettings {
+                            SettingsLink {
+                                Text("Open Settings")
+                            }
+                        }
+                    }
+                } else {
                     Text(activationOption.reason)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    if let onActivateRecommended {
-                        Button(self.isActivatingProfile ? "Activating..." : "Activate Recommended") {
-                            onActivateRecommended()
-                        }
-                        .disabled(self.isActivatingProfile || !activationOption.isActivatable)
-                    }
                 }
             }
         }
