@@ -1,7 +1,12 @@
 import SwiftUI
+import QuotaPilotCore
 
 struct RulesSettingsView: View {
     let model: AppModel
+
+    @State private var draftProvider: QuotaProvider = .codex
+    @State private var draftLabel = ""
+    @State private var draftPath = ""
 
     private var discoveredProfilesSection: some View {
         Section("Discovered Local Profiles") {
@@ -50,6 +55,54 @@ struct RulesSettingsView: View {
                 }
             }
             .disabled(self.model.isRefreshingUsage)
+        }
+    }
+
+    private var storedSourcesSection: some View {
+        Section("Additional Profile Sources") {
+            if self.model.storedProfileSources.isEmpty {
+                Text("No extra profile roots added yet.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(self.model.storedProfileSources) { source in
+                    HStack(alignment: .top, spacing: 8) {
+                        ProviderIconView(provider: source.provider, size: 14)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(source.label)
+                                .fontWeight(.semibold)
+                            Text(source.profileRootPath)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Remove") {
+                            self.model.removeStoredProfileSource(id: source.id)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+
+            Picker("Provider", selection: self.$draftProvider) {
+                ForEach(QuotaProvider.allCases, id: \.self) { provider in
+                    Text(provider.displayName).tag(provider)
+                }
+            }
+
+            TextField("Label", text: self.$draftLabel)
+            TextField("Profile root path", text: self.$draftPath)
+                .textFieldStyle(.roundedBorder)
+
+            Button("Add Profile Source") {
+                self.model.addStoredProfileSource(
+                    provider: self.draftProvider,
+                    label: self.draftLabel,
+                    path: self.draftPath
+                )
+                self.draftLabel = ""
+                self.draftPath = ""
+            }
+            .disabled(self.draftPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
@@ -114,6 +167,7 @@ struct RulesSettingsView: View {
             }
 
             self.discoveredProfilesSection
+            self.storedSourcesSection
 
             Section {
                 Button("Reset to defaults") {

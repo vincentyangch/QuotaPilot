@@ -8,11 +8,14 @@ final class AppModel {
     private let engine = RecommendationEngine()
     private let ambientUsageLoader: AmbientUsageLoader
     private let profileDiscovery: LocalProfileDiscovery
+    private let profileSourceStore: StoredProfileSourceStoring
     private let rulesStorage: GlobalRulesStorage
     private var didAttemptInitialRefresh = false
+    private let homeURL: URL
 
     var accounts: [QuotaAccount]
     var discoveredProfiles: [DiscoveredLocalProfile]
+    var storedProfileSources: [StoredProfileSource]
     var isRefreshingUsage = false
     var lastUsageRefreshSummary: String
     var rules: GlobalRules {
@@ -25,15 +28,22 @@ final class AppModel {
         accounts: [QuotaAccount] = DemoAccountRepository.makeAccounts(),
         ambientUsageLoader: AmbientUsageLoader = AmbientUsageLoader(),
         profileDiscovery: LocalProfileDiscovery = LocalProfileDiscovery(),
+        profileSourceStore: StoredProfileSourceStoring = FileStoredProfileSourceStore(),
         rulesStorage: GlobalRulesStorage = GlobalRulesStorage(),
+        homeURL: URL = FileManager.default.homeDirectoryForCurrentUser,
         rules: GlobalRules? = nil
     ) {
         self.ambientUsageLoader = ambientUsageLoader
         self.profileDiscovery = profileDiscovery
+        self.profileSourceStore = profileSourceStore
         self.rulesStorage = rulesStorage
-        let discoveredProfiles = profileDiscovery.discoverDefaultProfiles()
+        self.homeURL = homeURL
+        let storedSources = (try? profileSourceStore.loadSources()) ?? []
+        let candidates = ProfileSourceCatalog.makeCandidates(homeURL: homeURL, storedSources: storedSources)
+        let discoveredProfiles = profileDiscovery.discover(candidates: candidates)
         self.accounts = accounts
         self.discoveredProfiles = discoveredProfiles
+        self.storedProfileSources = storedSources
         self.rules = rules ?? rulesStorage.load()
         self.lastUsageRefreshSummary = discoveredProfiles.isEmpty
             ? "No local profiles found. Showing demo data."
@@ -58,7 +68,12 @@ final class AppModel {
     }
 
     func refreshDiscoveredProfiles() {
-        self.discoveredProfiles = self.profileDiscovery.discoverDefaultProfiles()
+        self.storedProfileSources = (try? self.profileSourceStore.loadSources()) ?? self.storedProfileSources
+        let candidates = ProfileSourceCatalog.makeCandidates(
+            homeURL: self.homeURL,
+            storedSources: self.storedProfileSources
+        )
+        self.discoveredProfiles = self.profileDiscovery.discover(candidates: candidates)
     }
 
     func performInitialLiveRefreshIfNeeded() async {
@@ -114,6 +129,42 @@ final class AppModel {
 
     func resetRules() {
         self.rules = .default
+    }
+
+    func addStoredProfileSource(
+        provider: QuotaProvider,
+        label: String,
+        path: String
+    ) {
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { return }
+
+        let normalizedURL = URL(fileURLWithPath: trimmedPath, isDirectory: true).standardizedFileURL
+        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalLabel = trimmedLabel.isEmpty ? normalizedURL.lastPathComponent : trimmedLabel
+
+        let source = StoredProfileSource(
+            id: UUID(),
+            provider: provider,
+            label: finalLabel,
+            profileRootPath: normalizedURL.path,
+            isEnabled: true,
+            addedAt: Date()
+        )
+
+        guard !self.storedProfileSources.contains(where: {
+            $0.provider == source.provider && URL(fileURLWithPath: $0.profileRootPath).standardizedFileURL == normalizedURL
+        }) else { return }
+
+        self.storedProfileSources.append(source)
+        try? self.profileSourceStore.saveSources(self.storedProfileSources)
+        self.refreshDiscoveredProfiles()
+    }
+
+    func removeStoredProfileSource(id: UUID) {
+        self.storedProfileSources.removeAll { $0.id == id }
+        try? self.profileSourceStore.saveSources(self.storedProfileSources)
+        self.refreshDiscoveredProfiles()
     }
 
     private func mergedAccounts(liveAccounts: [QuotaAccount]) -> [QuotaAccount] {
