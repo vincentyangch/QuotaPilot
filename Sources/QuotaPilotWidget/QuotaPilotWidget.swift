@@ -25,7 +25,7 @@ struct WidgetProviderIconView: View {
 
 struct QuotaPilotEntry: TimelineEntry {
     let date: Date
-    let providerRecommendations: [RecommendationEngine.ProviderRecommendation]
+    let projection: QuotaPilotWidgetProjectionResult
 }
 
 struct QuotaPilotProvider: TimelineProvider {
@@ -33,11 +33,17 @@ struct QuotaPilotProvider: TimelineProvider {
 
     func placeholder(in context: Context) -> QuotaPilotEntry {
         let accounts = DemoAccountRepository.makeAccounts()
-        let recommendations = RecommendationEngine().recommendationsByProvider(accounts: accounts, rules: .default)
+        let snapshot = QuotaPilotWidgetSnapshot(
+            generatedAt: .now,
+            accounts: accounts,
+            rules: .default,
+            lastUsageRefreshSummary: "Demo data"
+        )
+        let projection = QuotaPilotWidgetProjection.make(snapshot: snapshot)
 
         return QuotaPilotEntry(
             date: .now,
-            providerRecommendations: recommendations
+            projection: projection
         )
     }
 
@@ -55,48 +61,67 @@ struct QuotaPilotProvider: TimelineProvider {
             return nil
         }
 
-        let recommendations = RecommendationEngine().recommendationsByProvider(
-            accounts: snapshot.accounts,
-            rules: snapshot.rules,
-            now: snapshot.generatedAt
-        )
+        let projection = QuotaPilotWidgetProjection.make(snapshot: snapshot)
 
-        guard !recommendations.isEmpty else { return nil }
+        guard !projection.providerPanels.isEmpty else { return nil }
 
         return QuotaPilotEntry(
             date: snapshot.generatedAt,
-            providerRecommendations: recommendations
+            projection: projection
         )
     }
 }
 
 struct QuotaPilotWidgetView: View {
     let entry: QuotaPilotEntry
+    @Environment(\.widgetFamily) private var family
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Best Accounts")
+            Text("QuotaPilot")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            ForEach(self.entry.providerRecommendations) { recommendation in
+            ForEach(self.entry.projection.providerPanels.prefix(self.family == .systemSmall ? 1 : 2), id: \.provider) { panel in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        WidgetProviderIconView(provider: recommendation.provider)
-                        Text(recommendation.provider.displayName)
+                        WidgetProviderIconView(provider: panel.provider)
+                        Text(panel.provider.displayName)
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        if panel.showsWarning {
+                            Text("Low")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.orange)
+                        }
                     }
 
-                    Text(recommendation.recommendedAccount?.label ?? "Unavailable")
+                    Text("Current: \(panel.currentLabel)")
+                        .font(.caption)
+                        .lineLimit(1)
+
+                    Text("Best: \(panel.recommendedLabel)")
                         .font(.headline)
                         .lineLimit(1)
 
-                    Text("\(recommendation.recommendedAccount?.primaryRemainingPercent ?? 0)% remaining")
+                    Text("\(panel.currentRemainingPercent)% now • \(panel.recommendedRemainingPercent)% best")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tint)
+
+                    Text(panel.statusText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
+
+            Spacer(minLength: 0)
+
+            Text(self.entry.projection.lastRefreshText)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding()
