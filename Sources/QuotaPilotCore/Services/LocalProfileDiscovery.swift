@@ -1,9 +1,14 @@
 import Foundation
 
 public struct LocalProfileDiscovery {
+    private let claudeKeychainProvider: ClaudeKeychainCredentialProviding
     private let fileManager: FileManager
 
-    public init(fileManager: FileManager = .default) {
+    public init(
+        claudeKeychainProvider: ClaudeKeychainCredentialProviding = ClaudeKeychainCredentialProvider(),
+        fileManager: FileManager = .default
+    ) {
+        self.claudeKeychainProvider = claudeKeychainProvider
         self.fileManager = fileManager
     }
 
@@ -30,14 +35,14 @@ public struct LocalProfileDiscovery {
 
     public func discover(candidates: [LocalProfileCandidate]) -> [DiscoveredLocalProfile] {
         candidates.compactMap { candidate in
-            guard self.fileManager.fileExists(atPath: candidate.credentialsURL.path) else { return nil }
-            guard let data = try? Data(contentsOf: candidate.credentialsURL) else { return nil }
-
             switch candidate.provider {
             case .codex:
+                guard self.fileManager.fileExists(atPath: candidate.credentialsURL.path),
+                      let data = try? Data(contentsOf: candidate.credentialsURL)
+                else { return nil }
                 return self.discoverCodexProfile(candidate: candidate, data: data)
             case .claude:
-                return self.discoverClaudeProfile(candidate: candidate, data: data)
+                return self.discoverClaudeProfile(candidate: candidate)
             }
         }
     }
@@ -75,24 +80,51 @@ public struct LocalProfileDiscovery {
         )
     }
 
-    private func discoverClaudeProfile(
+    private func discoverClaudeProfile(candidate: LocalProfileCandidate) -> DiscoveredLocalProfile? {
+        if self.fileManager.fileExists(atPath: candidate.credentialsURL.path),
+           let data = try? Data(contentsOf: candidate.credentialsURL),
+           let profile = self.makeClaudeProfile(
+               candidate: candidate,
+               data: data,
+               sourceDescription: candidate.sourceDescription
+           )
+        {
+            return profile
+        }
+
+        if let data = try? self.claudeKeychainProvider.readCredentialData(),
+           let profile = self.makeClaudeProfile(
+               candidate: candidate,
+               data: data,
+               sourceDescription: "macOS Keychain"
+           )
+        {
+            return profile
+        }
+
+        return nil
+    }
+
+    private func makeClaudeProfile(
         candidate: LocalProfileCandidate,
-        data: Data
+        data: Data,
+        sourceDescription: String
     ) -> DiscoveredLocalProfile? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         guard let oauth = json["claudeAiOauth"] as? [String: Any] else { return nil }
         guard let accessToken = oauth["accessToken"] as? String, !accessToken.isEmpty else { return nil }
 
         let plan = Self.normalizedString(oauth["rateLimitTier"] as? String)
+        let label = plan.map { "Claude \($0.capitalized)" } ?? candidate.labelHint
 
         return DiscoveredLocalProfile(
             provider: .claude,
-            label: candidate.labelHint,
+            label: label,
             email: nil,
             plan: plan,
             profileRootURL: candidate.profileRootURL,
             credentialsURL: candidate.credentialsURL,
-            sourceDescription: candidate.sourceDescription
+            sourceDescription: sourceDescription
         )
     }
 

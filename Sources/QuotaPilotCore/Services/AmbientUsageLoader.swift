@@ -30,10 +30,15 @@ public struct URLSessionRequestPerformer: URLRequestPerforming {
 }
 
 public struct AmbientUsageLoader: Sendable {
+    private let claudeKeychainProvider: ClaudeKeychainCredentialProviding
     private let network: URLRequestPerforming
 
-    public init(network: URLRequestPerforming = URLSessionRequestPerformer()) {
+    public init(
+        network: URLRequestPerforming = URLSessionRequestPerformer(),
+        claudeKeychainProvider: ClaudeKeychainCredentialProviding = ClaudeKeychainCredentialProvider()
+    ) {
         self.network = network
+        self.claudeKeychainProvider = claudeKeychainProvider
     }
 
     public func loadAccounts(from profiles: [DiscoveredLocalProfile]) async -> AmbientUsageRefreshResult {
@@ -104,16 +109,19 @@ public struct AmbientUsageLoader: Sendable {
     }
 
     private func loadClaudeCredentials(from url: URL) throws -> ClaudeCredentials {
-        let data = try Data(contentsOf: url)
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let oauth = json["claudeAiOauth"] as? [String: Any],
-              let accessToken = oauth["accessToken"] as? String,
-              !accessToken.isEmpty
-        else {
-            throw LoaderError.invalidCredentials(provider: .claude)
+        if let data = try? Data(contentsOf: url),
+           let credentials = self.parseClaudeCredentials(from: data)
+        {
+            return credentials
         }
 
-        return ClaudeCredentials(accessToken: accessToken)
+        if let data = try? self.claudeKeychainProvider.readCredentialData(),
+           let credentials = self.parseClaudeCredentials(from: data)
+        {
+            return credentials
+        }
+
+        throw LoaderError.invalidCredentials(provider: .claude)
     }
 
     private func makeCodexRequest(accessToken: String, accountID: String?) -> URLRequest {
@@ -252,6 +260,18 @@ public struct AmbientUsageLoader: Sendable {
         }
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
+    }
+
+    private func parseClaudeCredentials(from data: Data) -> ClaudeCredentials? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let oauth = json["claudeAiOauth"] as? [String: Any],
+              let accessToken = oauth["accessToken"] as? String,
+              !accessToken.isEmpty
+        else {
+            return nil
+        }
+
+        return ClaudeCredentials(accessToken: accessToken)
     }
 }
 

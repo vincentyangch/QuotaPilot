@@ -88,6 +88,43 @@ final class LocalProfileDiscoveryTests: XCTestCase {
         XCTAssertEqual(discovered.label, "Claude Max")
     }
 
+    func testDiscoversClaudeProfileFromKeychainWhenFileIsMissing() throws {
+        let root = try self.makeTemporaryDirectory()
+        let profileRoot = root.appendingPathComponent("claude-keychain", isDirectory: true)
+        try FileManager.default.createDirectory(at: profileRoot, withIntermediateDirectories: true)
+
+        let credentialsJSON = """
+        {
+          "claudeAiOauth": {
+            "accessToken": "access",
+            "refreshToken": "refresh",
+            "expiresAt": 1893456000000,
+            "rateLimitTier": "free"
+          }
+        }
+        """
+
+        let discovery = LocalProfileDiscovery(
+            claudeKeychainProvider: StubClaudeKeychainCredentialProvider(data: Data(credentialsJSON.utf8))
+        )
+
+        let profiles = discovery.discover(
+            candidates: [
+                .claude(
+                    profileRootURL: profileRoot,
+                    labelHint: "Claude Ambient",
+                    sourceDescription: "Test"
+                )
+            ]
+        )
+
+        let discovered = try XCTUnwrap(profiles.first)
+        XCTAssertEqual(discovered.provider, .claude)
+        XCTAssertEqual(discovered.plan, "free")
+        XCTAssertEqual(discovered.label, "Claude Free")
+        XCTAssertEqual(discovered.sourceDescription, "macOS Keychain")
+    }
+
     func testSkipsMissingOrInvalidProfiles() throws {
         let root = try self.makeTemporaryDirectory()
         let invalidCodexRoot = root.appendingPathComponent("broken-codex", isDirectory: true)
@@ -98,7 +135,11 @@ final class LocalProfileDiscoveryTests: XCTestCase {
             encoding: .utf8
         )
 
-        let profiles = LocalProfileDiscovery().discover(
+        let discovery = LocalProfileDiscovery(
+            claudeKeychainProvider: StubClaudeKeychainCredentialProvider(data: nil)
+        )
+
+        let profiles = discovery.discover(
             candidates: [
                 .codex(
                     profileRootURL: invalidCodexRoot,
@@ -138,5 +179,13 @@ final class LocalProfileDiscoveryTests: XCTestCase {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+private struct StubClaudeKeychainCredentialProvider: ClaudeKeychainCredentialProviding {
+    let data: Data?
+
+    func readCredentialData() throws -> Data? {
+        self.data
     }
 }
