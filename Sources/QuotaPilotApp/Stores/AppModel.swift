@@ -446,12 +446,14 @@ final class AppModel {
 
             self.currentProfileSelections[profile.provider] = result.activatedProfileRootPath
             try? self.currentProfileSelectionStore.saveSelections(self.currentProfileSelections)
-            self.lastProfileActionSummary = "Activated \(profile.label) for \(profile.provider.displayName)."
+            let actionVerb = profile.isManagedBackup ? "Restored" : "Activated"
+            let activityTitle = profile.isManagedBackup ? "Restored backup" : "Activated profile"
+            self.lastProfileActionSummary = "\(actionVerb) \(profile.label) for \(profile.provider.displayName)."
             self.recordActivity(
                 kind: .activationSucceeded,
                 provider: profile.provider,
-                title: "Activated profile",
-                detail: "Activated \(profile.label) for \(profile.provider.displayName)."
+                title: activityTitle,
+                detail: self.lastProfileActionSummary ?? "\(actionVerb) \(profile.label) for \(profile.provider.displayName)."
             )
             let refreshResult = await self.refreshLiveUsage(planPostRefreshActions: verificationOption == nil)
             if let verificationOption {

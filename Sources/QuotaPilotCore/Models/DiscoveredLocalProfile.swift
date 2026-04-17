@@ -65,4 +65,8 @@ public struct DiscoveredLocalProfile: Identifiable, Equatable, Sendable {
             ? "Restore Backup"
             : "Activate"
     }
+
+    public var isManagedBackup: Bool {
+        self.sourceKind == .backup && self.ownershipMode == .quotaPilotManaged
+    }
 }
