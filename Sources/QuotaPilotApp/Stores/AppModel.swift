@@ -31,6 +31,7 @@ final class AppModel {
     var currentProfileSelections: [QuotaProvider: String]
     var discoveredProfiles: [DiscoveredLocalProfile]
     var lastRecommendationAlertSummary: String?
+    var pendingSwitchConfirmations: [QuotaProvider: RecommendationActivationOption]
     var recommendationAlertSettings: RecommendationAlertSettings
     var switchActionMode: SwitchActionMode
     var storedProfileSources: [StoredProfileSource]
@@ -87,6 +88,7 @@ final class AppModel {
         self.currentProfileSelections = currentSelections
         self.discoveredProfiles = discoveredProfiles
         self.lastRecommendationAlertSummary = nil
+        self.pendingSwitchConfirmations = [:]
         self.recommendationAlertSettings = recommendationAlertSettingsStorage.load()
         self.switchActionMode = switchActionModeStorage.load()
         self.storedProfileSources = storedSources
@@ -160,9 +162,15 @@ final class AppModel {
         guard !self.isRefreshingUsage else { return }
         self.isRefreshingUsage = true
         var pendingAutomaticActivations: [RecommendationActivationOption] = []
+        var pendingConfirmationUpdates: [QuotaProvider: RecommendationActivationOption] = [:]
         self.refreshDiscoveredProfiles()
         defer {
             self.isRefreshingUsage = false
+            if !pendingConfirmationUpdates.isEmpty {
+                for (provider, option) in pendingConfirmationUpdates {
+                    self.pendingSwitchConfirmations[provider] = option
+                }
+            }
             if !pendingAutomaticActivations.isEmpty {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
@@ -196,7 +204,13 @@ final class AppModel {
         }
 
         self.persistWidgetSnapshot()
-        pendingAutomaticActivations = self.planAutomaticActivations()
+        let switchPlan = self.planSwitchActions()
+        pendingAutomaticActivations = switchPlan.automaticActivations
+        pendingConfirmationUpdates = Dictionary(uniqueKeysWithValues: switchPlan.confirmationsToPresent.map { ($0.provider, $0) })
+        if !switchPlan.confirmationsToPresent.isEmpty {
+            self.lastProfileActionSummary = "Confirmation needed for \(switchPlan.confirmationsToPresent.count) recommended profile(s)."
+        }
+
         if pendingAutomaticActivations.isEmpty {
             await self.syncRecommendationAlerts()
         } else {
@@ -249,6 +263,9 @@ final class AppModel {
     func updateSwitchActionMode(_ mode: SwitchActionMode) {
         self.switchActionMode = mode
         self.switchActionModeStorage.save(mode)
+        if mode != .confirmBeforeActivatingLocalProfiles {
+            self.pendingSwitchConfirmations = [:]
+        }
     }
 
     func updateBackgroundRefreshEnabled(_ isEnabled: Bool) {
@@ -357,6 +374,31 @@ final class AppModel {
         await self.activateProfile(provider: provider, profileRootPath: option.profileRootPath)
     }
 
+    func approvePendingSwitch(for provider: QuotaProvider) async {
+        guard let option = self.pendingSwitchConfirmations[provider] else {
+            self.lastProfileActionSummary = "No pending switch confirmation for \(provider.displayName)."
+            return
+        }
+
+        self.pendingSwitchConfirmations.removeValue(forKey: provider)
+        if let candidate = self.recommendationCandidatesByProvider[provider] {
+            var state = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
+            state[provider] = candidate.identifier
+            try? self.recommendationAlertStateStore.saveState(state)
+        }
+        await self.activateProfile(provider: provider, profileRootPath: option.profileRootPath)
+    }
+
+    func dismissPendingSwitch(for provider: QuotaProvider) {
+        guard self.pendingSwitchConfirmations.removeValue(forKey: provider) != nil else { return }
+        if let candidate = self.recommendationCandidatesByProvider[provider] {
+            var state = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
+            state[provider] = candidate.identifier
+            try? self.recommendationAlertStateStore.saveState(state)
+        }
+        self.lastProfileActionSummary = "Dismissed the pending \(provider.displayName) switch request."
+    }
+
     func removeStoredProfileSource(id: UUID) {
         let removed = self.storedProfileSources.first(where: { $0.id == id })
         self.storedProfileSources.removeAll { $0.id == id }
@@ -451,35 +493,48 @@ final class AppModel {
         }
     }
 
-    private func planAutomaticActivations() -> [RecommendationActivationOption] {
-        guard self.switchActionMode == .autoActivateLocalProfiles else { return [] }
-
-        let previousState = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
-        let candidatesByProvider = Dictionary(
+    private var recommendationCandidatesByProvider: [QuotaProvider: RecommendationAlertCandidate] {
+        Dictionary(
             uniqueKeysWithValues: RecommendationAlertPlanner
                 .makeCandidates(recommendations: self.providerRecommendations)
                 .map { ($0.provider, $0) }
         )
-        var nextState = previousState
-        var options: [RecommendationActivationOption] = []
+    }
 
-        for recommendation in self.providerRecommendations {
-            guard let option = self.recommendationActivationOption(for: recommendation.provider),
-                  option.isActivatable,
-                  let candidate = candidatesByProvider[recommendation.provider],
-                  previousState[recommendation.provider] != candidate.identifier
-            else {
-                continue
+    private var activationOptionsByProvider: [QuotaProvider: RecommendationActivationOption] {
+        Dictionary(
+            uniqueKeysWithValues: QuotaProvider.allCases.compactMap { provider in
+                guard let option = self.recommendationActivationOption(for: provider) else { return nil }
+                return (provider, option)
             }
+        )
+    }
 
-            nextState[recommendation.provider] = candidate.identifier
-            options.append(option)
-        }
+    private func planSwitchActions() -> SwitchActionPlan {
+        let previousState = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
+        let plan = SwitchActionPlanner.makePlan(
+            mode: self.switchActionMode,
+            activationOptionsByProvider: self.activationOptionsByProvider,
+            recommendationCandidatesByProvider: self.recommendationCandidatesByProvider,
+            handledRecommendationIDsByProvider: previousState,
+            pendingConfirmationIDsByProvider: Dictionary(
+                uniqueKeysWithValues: self.pendingSwitchConfirmations.compactMap { provider, _ in
+                    guard let candidate = self.recommendationCandidatesByProvider[provider] else { return nil }
+                    return (provider, candidate.identifier)
+                }
+            )
+        )
 
-        if !options.isEmpty {
+        if !plan.automaticActivations.isEmpty {
+            var nextState = previousState
+            for option in plan.automaticActivations {
+                if let candidate = self.recommendationCandidatesByProvider[option.provider] {
+                    nextState[option.provider] = candidate.identifier
+                }
+            }
             try? self.recommendationAlertStateStore.saveState(nextState)
         }
 
-        return options
+        return plan
     }
 }

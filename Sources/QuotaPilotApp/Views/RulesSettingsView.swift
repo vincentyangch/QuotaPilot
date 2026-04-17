@@ -218,6 +218,26 @@ struct RulesSettingsView: View {
 
                 Text(self.model.switchActionMode.summary)
                     .foregroundStyle(.secondary)
+
+                if !self.model.pendingSwitchConfirmations.isEmpty {
+                    ForEach(Array(self.model.pendingSwitchConfirmations.keys), id: \.self) { provider in
+                        if let option = self.model.pendingSwitchConfirmations[provider] {
+                            HStack {
+                                Text("Pending \(provider.displayName): \(option.accountLabel)")
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Approve") {
+                                    Task {
+                                        await self.model.approvePendingSwitch(for: provider)
+                                    }
+                                }
+                                Button("Dismiss") {
+                                    self.model.dismissPendingSwitch(for: provider)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Section("Alerts") {
