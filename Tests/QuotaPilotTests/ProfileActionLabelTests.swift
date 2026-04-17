@@ -51,8 +51,18 @@ final class ProfileActionLabelTests: XCTestCase {
         )
 
         XCTAssertEqual(storedSource.removalActionTitle, "Delete Backup")
+        XCTAssertEqual(storedSource.removalConfirmationTitle, "Delete managed backup?")
+        XCTAssertEqual(
+            storedSource.removalConfirmationDetail,
+            "QuotaPilot will permanently delete Codex Ambient Backup from its managed backup storage."
+        )
         XCTAssertEqual(discovered.activationActionTitle, "Restore Backup")
         XCTAssertEqual(item.activationActionTitle, "Restore Backup")
+        XCTAssertEqual(item.deletionConfirmationTitle, "Delete managed backup?")
+        XCTAssertEqual(
+            item.deletionConfirmationDetail,
+            "QuotaPilot will permanently delete Codex Ambient Backup from its managed backup storage."
+        )
     }
 
     func testExternalProfilesKeepStandardActionLabels() {
@@ -104,6 +114,11 @@ final class ProfileActionLabelTests: XCTestCase {
         )
 
         XCTAssertEqual(storedSource.removalActionTitle, "Remove")
+        XCTAssertEqual(storedSource.removalConfirmationTitle, "Remove stored profile source?")
+        XCTAssertEqual(
+            storedSource.removalConfirmationDetail,
+            "QuotaPilot will stop tracking Claude Work, but it will not modify the provider credentials at that path."
+        )
         XCTAssertEqual(discovered.activationActionTitle, "Activate")
         XCTAssertEqual(item.activationActionTitle, "Activate")
     }

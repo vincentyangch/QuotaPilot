@@ -7,6 +7,8 @@ struct TrackedProfileInventorySectionView: View {
     let onActivate: (TrackedProfileInventoryItem) -> Void
     let onDelete: (TrackedProfileInventoryItem) -> Void
 
+    @State private var pendingDeletionItem: TrackedProfileInventoryItem?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Tracked Profiles")
@@ -96,7 +98,7 @@ struct TrackedProfileInventorySectionView: View {
 
                             if item.sourceKind == .backup && item.ownershipMode == .quotaPilotManaged {
                                 Button("Delete Backup", role: .destructive) {
-                                    self.onDelete(item)
+                                    self.pendingDeletionItem = item
                                 }
                                 .disabled(self.isActivatingProfile)
                             }
@@ -106,6 +108,28 @@ struct TrackedProfileInventorySectionView: View {
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
+        }
+        .confirmationDialog(
+            self.pendingDeletionItem?.deletionConfirmationTitle ?? "Delete managed backup?",
+            isPresented: Binding(
+                get: { self.pendingDeletionItem != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        self.pendingDeletionItem = nil
+                    }
+                }
+            ),
+            presenting: self.pendingDeletionItem
+        ) { item in
+            Button("Delete Backup", role: .destructive) {
+                self.onDelete(item)
+                self.pendingDeletionItem = nil
+            }
+            Button("Cancel", role: .cancel) {
+                self.pendingDeletionItem = nil
+            }
+        } message: { item in
+            Text(item.deletionConfirmationDetail)
         }
     }
 

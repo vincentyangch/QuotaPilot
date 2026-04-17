@@ -43,6 +43,19 @@ public struct StoredProfileSource: Identifiable, Codable, Equatable, Sendable {
             ? "Delete Backup"
             : "Remove"
     }
+
+    public var removalConfirmationTitle: String {
+        self.sourceKind == .backup && self.ownershipMode == .quotaPilotManaged
+            ? "Delete managed backup?"
+            : "Remove stored profile source?"
+    }
+
+    public var removalConfirmationDetail: String {
+        if self.sourceKind == .backup && self.ownershipMode == .quotaPilotManaged {
+            return "QuotaPilot will permanently delete \(self.label) from its managed backup storage."
+        }
+        return "QuotaPilot will stop tracking \(self.label), but it will not modify the provider credentials at that path."
+    }
 }
 
 extension StoredProfileSource {

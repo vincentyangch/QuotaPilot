@@ -32,4 +32,12 @@ public struct TrackedProfileInventoryItem: Identifiable, Equatable, Sendable {
             ? "Restore Backup"
             : "Activate"
     }
+
+    public var deletionConfirmationTitle: String {
+        "Delete managed backup?"
+    }
+
+    public var deletionConfirmationDetail: String {
+        "QuotaPilot will permanently delete \(self.label) from its managed backup storage."
+    }
 }

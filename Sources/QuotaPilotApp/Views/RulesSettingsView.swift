@@ -7,6 +7,7 @@ struct RulesSettingsView: View {
     @State private var draftProvider: QuotaProvider = .codex
     @State private var draftLabel = ""
     @State private var draftPath = ""
+    @State private var pendingRemovalSource: StoredProfileSource?
 
     private func chooseProfileFolder() {
         guard let selectedPath = ProfileSourceFolderPicker.chooseFolder(startingAt: self.draftPath) else { return }
@@ -114,7 +115,7 @@ struct RulesSettingsView: View {
                         }
                         Spacer()
                         Button(source.removalActionTitle) {
-                            self.model.removeStoredProfileSource(id: source.id)
+                            self.pendingRemovalSource = source
                         }
                     }
                     .padding(.vertical, 2)
@@ -240,9 +241,31 @@ struct RulesSettingsView: View {
                                 }
                                 Button("Dismiss") {
                                     self.model.dismissPendingSwitch(for: provider)
-                                }
-                            }
-                        }
+        }
+        .confirmationDialog(
+            self.pendingRemovalSource?.removalConfirmationTitle ?? "Remove stored profile source?",
+            isPresented: Binding(
+                get: { self.pendingRemovalSource != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        self.pendingRemovalSource = nil
+                    }
+                }
+            ),
+            presenting: self.pendingRemovalSource
+        ) { source in
+            Button(source.removalActionTitle, role: .destructive) {
+                self.model.removeStoredProfileSource(id: source.id)
+                self.pendingRemovalSource = nil
+            }
+            Button("Cancel", role: .cancel) {
+                self.pendingRemovalSource = nil
+            }
+        } message: { source in
+            Text(source.removalConfirmationDetail)
+        }
+    }
+}
                     }
                 }
             }
