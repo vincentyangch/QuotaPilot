@@ -111,6 +111,102 @@ final class LocalProfileActivatorTests: XCTestCase {
         )
     }
 
+    func testDeletingManagedBackupRemovesBackupDirectory() throws {
+        let homeURL = try self.makeTemporaryDirectory(named: "home")
+        let backupRoot = try self.makeTemporaryDirectory(named: "backups")
+        let backupProfileRoot = backupRoot
+            .appendingPathComponent("codex", isDirectory: true)
+            .appendingPathComponent("ambient-backup", isDirectory: true)
+
+        try FileManager.default.createDirectory(at: backupProfileRoot, withIntermediateDirectories: true)
+        try self.writeCodexAuth(
+            email: "backup@example.com",
+            plan: "pro",
+            to: backupProfileRoot.appendingPathComponent("auth.json")
+        )
+
+        let source = StoredProfileSource(
+            id: UUID(),
+            provider: .codex,
+            label: "Codex Ambient Backup",
+            profileRootPath: backupProfileRoot.path,
+            isEnabled: true,
+            addedAt: .now,
+            sourceKind: .backup,
+            ownershipMode: .quotaPilotManaged
+        )
+
+        let activator = LocalProfileActivator(
+            homeURL: homeURL,
+            backupRootURL: backupRoot,
+            claudeKeychainManager: StubClaudeKeychainCredentialManager(data: nil)
+        )
+
+        try activator.deleteManagedBackup(source: source)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: backupProfileRoot.path))
+    }
+
+    func testDeletingExternalSourceDoesNothing() throws {
+        let homeURL = try self.makeTemporaryDirectory(named: "home")
+        let externalRoot = try self.makeTemporaryDirectory(named: "external")
+        try self.writeCodexAuth(
+            email: "external@example.com",
+            plan: "plus",
+            to: externalRoot.appendingPathComponent("auth.json")
+        )
+
+        let source = StoredProfileSource(
+            id: UUID(),
+            provider: .codex,
+            label: "External Codex",
+            profileRootPath: externalRoot.path,
+            isEnabled: true,
+            addedAt: .now,
+            sourceKind: .stored,
+            ownershipMode: .externalLocal
+        )
+
+        let activator = LocalProfileActivator(
+            homeURL: homeURL,
+            backupRootURL: try self.makeTemporaryDirectory(named: "backups"),
+            claudeKeychainManager: StubClaudeKeychainCredentialManager(data: nil)
+        )
+
+        try activator.deleteManagedBackup(source: source)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: externalRoot.path))
+    }
+
+    func testDeletingBackupRootIsRejected() throws {
+        let homeURL = try self.makeTemporaryDirectory(named: "home")
+        let backupRoot = try self.makeTemporaryDirectory(named: "backups")
+
+        let source = StoredProfileSource(
+            id: UUID(),
+            provider: .codex,
+            label: "Invalid Backup Root",
+            profileRootPath: backupRoot.path,
+            isEnabled: true,
+            addedAt: .now,
+            sourceKind: .backup,
+            ownershipMode: .quotaPilotManaged
+        )
+
+        let activator = LocalProfileActivator(
+            homeURL: homeURL,
+            backupRootURL: backupRoot,
+            claudeKeychainManager: StubClaudeKeychainCredentialManager(data: nil)
+        )
+
+        XCTAssertThrowsError(try activator.deleteManagedBackup(source: source)) { error in
+            guard case LocalProfileActivatorError.invalidManagedBackupSource = error else {
+                return XCTFail("Expected invalidManagedBackupSource, got \(error)")
+            }
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: backupRoot.path))
+    }
+
     private func makeTemporaryDirectory(named name: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

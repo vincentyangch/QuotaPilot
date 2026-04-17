@@ -5,6 +5,7 @@ struct TrackedProfileInventorySectionView: View {
     let isActivatingProfile: Bool
     let items: [TrackedProfileInventoryItem]
     let onActivate: (TrackedProfileInventoryItem) -> Void
+    let onDelete: (TrackedProfileInventoryItem) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -85,11 +86,20 @@ struct TrackedProfileInventorySectionView: View {
 
                         Spacer()
 
-                        if !item.isCurrentSelection {
-                            Button(self.isActivatingProfile ? "Activating..." : item.activationActionTitle) {
-                                self.onActivate(item)
+                        VStack(alignment: .trailing, spacing: 8) {
+                            if !item.isCurrentSelection {
+                                Button(self.isActivatingProfile ? "Activating..." : item.activationActionTitle) {
+                                    self.onActivate(item)
+                                }
+                                .disabled(self.isActivatingProfile)
                             }
-                            .disabled(self.isActivatingProfile)
+
+                            if item.sourceKind == .backup && item.ownershipMode == .quotaPilotManaged {
+                                Button("Delete Backup", role: .destructive) {
+                                    self.onDelete(item)
+                                }
+                                .disabled(self.isActivatingProfile)
+                            }
                         }
                     }
                     .padding(14)

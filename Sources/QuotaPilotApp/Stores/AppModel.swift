@@ -545,8 +545,26 @@ final class AppModel {
             self.currentProfileSelections.removeValue(forKey: removed.provider)
             try? self.currentProfileSelectionStore.saveSelections(self.currentProfileSelections)
         }
+        if let removed {
+            do {
+                try self.profileActivator.deleteManagedBackup(source: removed)
+                if removed.sourceKind == .backup && removed.ownershipMode == .quotaPilotManaged {
+                    self.lastProfileActionSummary = "Deleted managed backup \(removed.label)."
+                }
+            } catch {
+                self.lastProfileActionSummary = "Could not delete managed backup \(removed.label): \(error.localizedDescription)"
+            }
+        }
         try? self.profileSourceStore.saveSources(self.storedProfileSources)
         self.refreshDiscoveredProfiles()
+    }
+
+    func removeTrackedProfileItem(_ item: TrackedProfileInventoryItem) {
+        guard let source = self.storedProfileSources.first(where: {
+            $0.provider == item.provider
+                && $0.profileRootURL.standardizedFileURL.path == item.profileRootPath
+        }) else { return }
+        self.removeStoredProfileSource(id: source.id)
     }
 
     func isCurrentProfile(_ profile: DiscoveredLocalProfile) -> Bool {

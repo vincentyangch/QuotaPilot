@@ -64,6 +64,8 @@ struct DashboardView: View {
                                 profileRootPath: item.profileRootPath
                             )
                         }
+                    } onDelete: { item in
+                        self.model.removeTrackedProfileItem(item)
                     }
 
                     if !self.model.pendingSwitchConfirmations.isEmpty {

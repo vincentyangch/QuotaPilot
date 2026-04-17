@@ -18,11 +18,14 @@ public struct ProfileActivationResult: Sendable {
 
 public enum LocalProfileActivatorError: LocalizedError {
     case missingSourceCredentials(provider: QuotaProvider)
+    case invalidManagedBackupSource
 
     public var errorDescription: String? {
         switch self {
         case let .missingSourceCredentials(provider):
             return "Could not find usable \(provider.displayName) credentials for that profile."
+        case .invalidManagedBackupSource:
+            return "That backup is not a QuotaPilot-managed backup."
         }
     }
 }
@@ -71,6 +74,23 @@ public struct LocalProfileActivator {
             activatedProfileRootPath: standardizedTargetPath,
             createdBackupSource: backupSource
         )
+    }
+
+    public func deleteManagedBackup(source: StoredProfileSource) throws {
+        guard source.sourceKind == .backup,
+              source.ownershipMode == .quotaPilotManaged
+        else {
+            return
+        }
+
+        let backupRootPath = self.backupRootURL.standardizedFileURL.path
+        let sourceRootPath = source.profileRootURL.standardizedFileURL.path
+        guard sourceRootPath.hasPrefix(backupRootPath + "/") else {
+            throw LocalProfileActivatorError.invalidManagedBackupSource
+        }
+
+        guard self.fileManager.fileExists(atPath: sourceRootPath) else { return }
+        try self.fileManager.removeItem(at: source.profileRootURL)
     }
 
     private func ambientRootURL(for provider: QuotaProvider) -> URL {
