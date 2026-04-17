@@ -32,4 +32,21 @@ public struct GlobalRules: Codable, Equatable, Sendable {
         priorityWeight: 1,
         providerWeights: [.codex: 50, .claude: 50]
     )
+
+    public func updating(
+        switchThresholdPercent: Int? = nil,
+        minimumScoreAdvantage: Int? = nil,
+        remainingWeight: Int? = nil,
+        resetWeight: Int? = nil,
+        priorityWeight: Int? = nil
+    ) -> GlobalRules {
+        GlobalRules(
+            switchThresholdPercent: switchThresholdPercent ?? self.switchThresholdPercent,
+            minimumScoreAdvantage: minimumScoreAdvantage ?? self.minimumScoreAdvantage,
+            remainingWeight: remainingWeight ?? self.remainingWeight,
+            resetWeight: resetWeight ?? self.resetWeight,
+            priorityWeight: priorityWeight ?? self.priorityWeight,
+            providerWeights: self.providerWeights
+        )
+    }
 }

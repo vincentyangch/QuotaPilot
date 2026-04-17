@@ -5,16 +5,23 @@ import QuotaPilotCore
 @Observable
 final class AppModel {
     private let engine = RecommendationEngine()
+    private let rulesStorage: GlobalRulesStorage
 
     var accounts: [QuotaAccount]
-    var rules: GlobalRules
+    var rules: GlobalRules {
+        didSet {
+            self.rulesStorage.save(self.rules)
+        }
+    }
 
     init(
         accounts: [QuotaAccount] = DemoAccountRepository.makeAccounts(),
-        rules: GlobalRules = .default
+        rulesStorage: GlobalRulesStorage = GlobalRulesStorage(),
+        rules: GlobalRules? = nil
     ) {
+        self.rulesStorage = rulesStorage
         self.accounts = accounts
-        self.rules = rules
+        self.rules = rules ?? rulesStorage.load()
     }
 
     var providerRecommendations: [RecommendationEngine.ProviderRecommendation] {
@@ -31,5 +38,29 @@ final class AppModel {
 
     func reloadDemoData() {
         self.accounts = DemoAccountRepository.makeAccounts()
+    }
+
+    func updateSwitchThreshold(_ value: Int) {
+        self.rules = self.rules.updating(switchThresholdPercent: value)
+    }
+
+    func updateMinimumScoreAdvantage(_ value: Int) {
+        self.rules = self.rules.updating(minimumScoreAdvantage: value)
+    }
+
+    func updateRemainingWeight(_ value: Int) {
+        self.rules = self.rules.updating(remainingWeight: value)
+    }
+
+    func updateResetWeight(_ value: Int) {
+        self.rules = self.rules.updating(resetWeight: value)
+    }
+
+    func updatePriorityWeight(_ value: Int) {
+        self.rules = self.rules.updating(priorityWeight: value)
+    }
+
+    func resetRules() {
+        self.rules = .default
     }
 }

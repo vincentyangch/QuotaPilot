@@ -17,14 +17,7 @@ struct QuotaPilotApp: App {
         .menuBarExtraStyle(.window)
 
         Settings {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("QuotaPilot")
-                    .font(.title2.weight(.semibold))
-                Text("Settings and live provider configuration arrive in the next slice.")
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(24)
+            RulesSettingsView(model: self.model)
         }
     }
 }
