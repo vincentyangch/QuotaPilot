@@ -1,26 +1,29 @@
 import Foundation
 
-public struct QuotaPilotWidgetProviderPanel: Equatable, Sendable {
-    public let provider: QuotaProvider
+public struct QuotaPilotWidgetGlobalRecommendationPanel: Equatable, Sendable {
+    public let currentProvider: QuotaProvider
     public let currentLabel: String
     public let currentRemainingPercent: Int
+    public let recommendedProvider: QuotaProvider
     public let recommendedLabel: String
     public let recommendedRemainingPercent: Int
     public let showsWarning: Bool
     public let statusText: String
 
     public init(
-        provider: QuotaProvider,
+        currentProvider: QuotaProvider,
         currentLabel: String,
         currentRemainingPercent: Int,
+        recommendedProvider: QuotaProvider,
         recommendedLabel: String,
         recommendedRemainingPercent: Int,
         showsWarning: Bool,
         statusText: String
     ) {
-        self.provider = provider
+        self.currentProvider = currentProvider
         self.currentLabel = currentLabel
         self.currentRemainingPercent = currentRemainingPercent
+        self.recommendedProvider = recommendedProvider
         self.recommendedLabel = recommendedLabel
         self.recommendedRemainingPercent = recommendedRemainingPercent
         self.showsWarning = showsWarning
@@ -32,18 +35,18 @@ public struct QuotaPilotWidgetProjectionResult: Equatable, Sendable {
     public let generatedAt: Date
     public let lastRefreshText: String
     public let emptyStateText: String?
-    public let providerPanels: [QuotaPilotWidgetProviderPanel]
+    public let globalRecommendationPanel: QuotaPilotWidgetGlobalRecommendationPanel?
 
     public init(
         generatedAt: Date,
         lastRefreshText: String,
         emptyStateText: String? = nil,
-        providerPanels: [QuotaPilotWidgetProviderPanel]
+        globalRecommendationPanel: QuotaPilotWidgetGlobalRecommendationPanel?
     ) {
         self.generatedAt = generatedAt
         self.lastRefreshText = lastRefreshText
         self.emptyStateText = emptyStateText
-        self.providerPanels = providerPanels
+        self.globalRecommendationPanel = globalRecommendationPanel
     }
 }
 
@@ -52,23 +55,24 @@ public enum QuotaPilotWidgetProjection {
         snapshot: QuotaPilotWidgetSnapshot,
         now: Date = .now
     ) -> QuotaPilotWidgetProjectionResult {
-        let recommendations = RecommendationEngine().recommendationsByProvider(
+        let recommendation = RecommendationEngine().globalRecommendation(
             accounts: snapshot.accounts,
             rules: snapshot.rules,
             now: snapshot.generatedAt
         )
 
-        let panels = recommendations.compactMap { recommendation -> QuotaPilotWidgetProviderPanel? in
+        let panel = recommendation.flatMap { recommendation -> QuotaPilotWidgetGlobalRecommendationPanel? in
             guard let current = recommendation.currentAccount,
                   let recommended = recommendation.recommendedAccount
             else {
                 return nil
             }
 
-            return QuotaPilotWidgetProviderPanel(
-                provider: recommendation.provider,
+            return QuotaPilotWidgetGlobalRecommendationPanel(
+                currentProvider: current.provider,
                 currentLabel: current.label,
                 currentRemainingPercent: current.primaryRemainingPercent,
+                recommendedProvider: recommended.provider,
                 recommendedLabel: recommended.label,
                 recommendedRemainingPercent: recommended.primaryRemainingPercent,
                 showsWarning: recommendation.decision.action == .recommendSwitch
@@ -82,8 +86,8 @@ public enum QuotaPilotWidgetProjection {
         return QuotaPilotWidgetProjectionResult(
             generatedAt: snapshot.generatedAt,
             lastRefreshText: self.relativeRefreshText(from: snapshot.generatedAt, now: now),
-            emptyStateText: panels.isEmpty ? snapshot.lastUsageRefreshSummary : nil,
-            providerPanels: panels
+            emptyStateText: panel == nil ? snapshot.lastUsageRefreshSummary : nil,
+            globalRecommendationPanel: panel
         )
     }
 

@@ -3,8 +3,7 @@ import QuotaPilotCore
 
 struct StatusMenuView: View {
     let model: AppModel
-
-    @Environment(\.openWindow) private var openWindow
+    let onOpenDashboard: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -13,17 +12,15 @@ struct StatusMenuView: View {
                     title: self.model.liveAccountsEmptyStateTitle,
                     detail: self.model.liveAccountsEmptyStateDetail
                 )
-            } else {
-                ForEach(self.model.providerRecommendations) { recommendation in
-                    RecommendationCard(
-                        recommendation: recommendation,
-                        activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
-                        guidedHandoffPlan: self.model.guidedDesktopHandoffPlan(for: recommendation.provider),
-                        isActivatingProfile: self.model.isActivatingProfile
-                    ) {
-                        Task {
-                            await self.model.activateRecommendedProfile(for: recommendation.provider)
-                        }
+            } else if let recommendation = self.model.globalRecommendation {
+                RecommendationCard(
+                    recommendation: recommendation,
+                    activationOption: self.model.globalRecommendationActivationOption,
+                    guidedHandoffPlan: self.model.globalGuidedDesktopHandoffPlan,
+                    isActivatingProfile: self.model.isActivatingProfile
+                ) {
+                    Task {
+                        await self.model.activateRecommendedProfile()
                     }
                 }
             }
@@ -108,7 +105,7 @@ struct StatusMenuView: View {
                                 AccountRowView(
                                     account: scoredAccount.account,
                                     score: scoredAccount.score,
-                                    isRecommended: scoredAccount.account.id == recommendation.recommendedAccount?.id,
+                                    isRecommended: scoredAccount.account.id == self.model.globalRecommendation?.recommendedAccount?.id,
                                     showsScore: false
                                 )
                             }
@@ -130,7 +127,7 @@ struct StatusMenuView: View {
                 Spacer()
 
                 Button("Open Dashboard") {
-                    self.openWindow(id: "dashboard")
+                    self.onOpenDashboard()
                 }
 
                 SettingsLink {

@@ -12,11 +12,13 @@ final class AppModel {
     private let engine = RecommendationEngine()
     private let ambientUsageLoader: AmbientUsageLoader
     private let backgroundRefreshSettingsStorage: BackgroundRefreshSettingsStorage
+    private let launchAtLoginController: LaunchAtLoginControlling
     private let profileActivator: LocalProfileActivator
     private let profileDiscovery: LocalProfileDiscovery
     private let recommendationAlertNotifier: RecommendationAlertNotifying
     private let recommendationAlertSettingsStorage: RecommendationAlertSettingsStorage
     private let recommendationAlertStateStore: RecommendationAlertStateStore
+    private let startupBehaviorStorage: StartupBehaviorStorage
     private let switchActionModeStorage: SwitchActionModeStorage
     private let currentProfileSelectionStore: CurrentProfileSelectionStoring
     private let profileSourceStore: StoredProfileSourceStoring
@@ -35,8 +37,12 @@ final class AppModel {
     var discoveredProfiles: [DiscoveredLocalProfile]
     var lastAmbientRefreshFailures: [AmbientUsageRefreshFailure]
     var lastRecommendationAlertSummary: String?
+    var launchAtLoginStatus: LaunchAtLoginStatus
+    var launchSettingsSummary: String?
     var pendingSwitchConfirmations: [QuotaProvider: RecommendationActivationOption]
     var recommendationAlertSettings: RecommendationAlertSettings
+    var isLaunchAtLoginEnabled: Bool
+    var startupBehavior: StartupBehavior
     var switchActionMode: SwitchActionMode
     var storedProfileSources: [StoredProfileSource]
     var isActivatingProfile = false
@@ -55,11 +61,13 @@ final class AppModel {
         accounts: [QuotaAccount] = [],
         ambientUsageLoader: AmbientUsageLoader = AmbientUsageLoader(),
         backgroundRefreshSettingsStorage: BackgroundRefreshSettingsStorage = BackgroundRefreshSettingsStorage(),
+        launchAtLoginController: LaunchAtLoginControlling = LaunchAtLoginController(),
         profileActivator: LocalProfileActivator = LocalProfileActivator(),
         profileDiscovery: LocalProfileDiscovery = LocalProfileDiscovery(),
         recommendationAlertNotifier: RecommendationAlertNotifying = UserNotificationRecommendationAlertNotifier(),
         recommendationAlertSettingsStorage: RecommendationAlertSettingsStorage = RecommendationAlertSettingsStorage(),
         recommendationAlertStateStore: RecommendationAlertStateStore = RecommendationAlertStateStore(),
+        startupBehaviorStorage: StartupBehaviorStorage = StartupBehaviorStorage(),
         switchActionModeStorage: SwitchActionModeStorage = SwitchActionModeStorage(),
         currentProfileSelectionStore: CurrentProfileSelectionStoring = FileCurrentProfileSelectionStore(),
         profileSourceStore: StoredProfileSourceStoring = FileStoredProfileSourceStore(),
@@ -71,11 +79,13 @@ final class AppModel {
         self.activityLogStore = activityLogStore
         self.ambientUsageLoader = ambientUsageLoader
         self.backgroundRefreshSettingsStorage = backgroundRefreshSettingsStorage
+        self.launchAtLoginController = launchAtLoginController
         self.profileActivator = profileActivator
         self.profileDiscovery = profileDiscovery
         self.recommendationAlertNotifier = recommendationAlertNotifier
         self.recommendationAlertSettingsStorage = recommendationAlertSettingsStorage
         self.recommendationAlertStateStore = recommendationAlertStateStore
+        self.startupBehaviorStorage = startupBehaviorStorage
         self.switchActionModeStorage = switchActionModeStorage
         self.currentProfileSelectionStore = currentProfileSelectionStore
         self.profileSourceStore = profileSourceStore
@@ -101,8 +111,12 @@ final class AppModel {
         self.discoveredProfiles = discoveredProfiles
         self.lastAmbientRefreshFailures = []
         self.lastRecommendationAlertSummary = nil
+        self.launchAtLoginStatus = launchAtLoginController.status
+        self.launchSettingsSummary = nil
         self.pendingSwitchConfirmations = [:]
+        self.isLaunchAtLoginEnabled = launchAtLoginController.isEnabled
         self.recommendationAlertSettings = recommendationAlertSettingsStorage.load()
+        self.startupBehavior = startupBehaviorStorage.load()
         self.switchActionMode = switchActionModeStorage.load()
         self.storedProfileSources = storedSources
         self.rules = rules ?? rulesStorage.load()
@@ -114,6 +128,26 @@ final class AppModel {
 
     var providerRecommendations: [RecommendationEngine.ProviderRecommendation] {
         self.engine.recommendationsByProvider(accounts: self.accounts, rules: self.rules)
+    }
+
+    var globalRecommendation: RecommendationEngine.GlobalRecommendation? {
+        self.engine.globalRecommendation(accounts: self.accounts, rules: self.rules)
+    }
+
+    var globalRecommendationActivationOption: RecommendationActivationOption? {
+        RecommendationActivationPlanner.makeOption(
+            recommendation: self.globalRecommendation,
+            discoveredProfiles: self.discoveredProfiles,
+            currentProfileRootPaths: self.resolvedCurrentProfilePaths
+        )
+    }
+
+    var globalGuidedDesktopHandoffPlan: GuidedDesktopHandoffPlan? {
+        GuidedDesktopHandoffPlanner.makePlan(
+            recommendation: self.globalRecommendation,
+            activationOption: self.globalRecommendationActivationOption,
+            switchActionMode: self.switchActionMode
+        )
     }
 
     var latestBackupRestoreEntry: ActivityLogEntry? {
@@ -156,11 +190,15 @@ final class AppModel {
     }
 
     var recommendedAccountIDs: Set<UUID> {
-        Set(self.providerRecommendations.compactMap(\.recommendedAccount?.id))
+        Set(self.globalRecommendation.map { [$0.decision.recommendedAccountID] } ?? [])
     }
 
     var hasLiveAccounts: Bool {
         !self.accounts.isEmpty
+    }
+
+    var isStartingUp: Bool {
+        !self.didStartAppServices || self.isRefreshingUsage
     }
 
     var liveAccountsEmptyStateTitle: String {
@@ -215,10 +253,8 @@ final class AppModel {
         self.refreshDiscoveredProfiles()
         defer {
             self.isRefreshingUsage = false
-            if !pendingConfirmationUpdates.isEmpty {
-                for (provider, option) in pendingConfirmationUpdates {
-                    self.pendingSwitchConfirmations[provider] = option
-                }
+            if planPostRefreshActions {
+                self.pendingSwitchConfirmations = pendingConfirmationUpdates
             }
             if !pendingAutomaticActivations.isEmpty {
                 Task { @MainActor [weak self] in
@@ -292,7 +328,9 @@ final class AppModel {
             pendingAutomaticActivations = switchPlan.automaticActivations
             pendingConfirmationUpdates = Dictionary(uniqueKeysWithValues: switchPlan.confirmationsToPresent.map { ($0.provider, $0) })
             if !switchPlan.confirmationsToPresent.isEmpty {
-                self.lastProfileActionSummary = "Confirmation needed for \(switchPlan.confirmationsToPresent.count) recommended profile(s)."
+                if let option = switchPlan.confirmationsToPresent.first {
+                    self.lastProfileActionSummary = "Confirmation needed to switch to \(option.accountLabel)."
+                }
                 for option in switchPlan.confirmationsToPresent {
                     self.recordActivity(
                         kind: .confirmationQueued,
@@ -306,7 +344,9 @@ final class AppModel {
             if pendingAutomaticActivations.isEmpty {
                 await self.syncRecommendationAlerts()
             } else {
-                self.lastProfileActionSummary = "Auto-activating \(pendingAutomaticActivations.count) recommended profile(s)."
+                if let option = pendingAutomaticActivations.first {
+                    self.lastProfileActionSummary = "Auto-activating \(option.accountLabel)."
+                }
                 for option in pendingAutomaticActivations {
                     self.recordActivity(
                         kind: .autoActivationQueued,
@@ -389,6 +429,34 @@ final class AppModel {
         self.rebuildBackgroundRefreshLoop()
     }
 
+    func updateStartupBehavior(_ behavior: StartupBehavior) {
+        self.startupBehavior = behavior
+        self.startupBehaviorStorage.save(behavior)
+        self.launchSettingsSummary = behavior.opensDashboardOnLaunch
+            ? "QuotaPilot will open the dashboard when it launches."
+            : "QuotaPilot will launch into the menu bar without opening the dashboard."
+    }
+
+    func updateLaunchAtLoginEnabled(_ isEnabled: Bool) {
+        do {
+            try self.launchAtLoginController.setEnabled(isEnabled)
+        } catch {
+            self.refreshLaunchAtLoginState()
+            self.launchSettingsSummary = "Could not update launch at login: \(error.localizedDescription)"
+            return
+        }
+
+        self.refreshLaunchAtLoginState()
+        switch self.launchAtLoginStatus {
+        case .enabled:
+            self.launchSettingsSummary = "QuotaPilot will launch at login."
+        case .requiresApproval:
+            self.launchSettingsSummary = "Approve QuotaPilot in System Settings to finish enabling launch at login."
+        case .disabled:
+            self.launchSettingsSummary = "QuotaPilot will no longer launch at login."
+        }
+    }
+
     func addStoredProfileSource(
         provider: QuotaProvider,
         label: String,
@@ -435,6 +503,7 @@ final class AppModel {
     ) async {
         self.isActivatingProfile = true
         defer { self.isActivatingProfile = false }
+        let restoreProvenance = profile.isManagedBackup ? self.makeRestoreProvenance(for: profile) : nil
 
         do {
             let result = try self.profileActivator.activate(profile: profile)
@@ -458,7 +527,8 @@ final class AppModel {
                 kind: .activationSucceeded,
                 provider: profile.provider,
                 title: activityTitle,
-                detail: self.lastProfileActionSummary ?? "\(actionVerb) \(profile.label) for \(profile.provider.displayName)."
+                detail: self.lastProfileActionSummary ?? "\(actionVerb) \(profile.label) for \(profile.provider.displayName).",
+                restoreProvenance: restoreProvenance
             )
             let refreshResult = await self.refreshLiveUsage(planPostRefreshActions: verificationOption == nil)
             if let verificationOption {
@@ -503,8 +573,17 @@ final class AppModel {
     }
 
     func activateRecommendedProfile(for provider: QuotaProvider) async {
-        guard let option = self.recommendationActivationOption(for: provider) else {
-            self.lastProfileActionSummary = "No activatable recommendation is available for \(provider.displayName)."
+        guard self.globalRecommendation?.recommendedAccount?.provider == provider else {
+            self.lastProfileActionSummary = "No global recommendation is available for \(provider.displayName)."
+            return
+        }
+        await self.activateRecommendedProfile()
+    }
+
+    func activateRecommendedProfile() async {
+        guard let option = self.globalRecommendationActivationOption else {
+            let providerName = self.globalRecommendation?.recommendedAccount?.provider.displayName ?? "the recommended provider"
+            self.lastProfileActionSummary = "No activatable recommendation is available for \(providerName)."
             return
         }
 
@@ -513,12 +592,22 @@ final class AppModel {
             return
         }
 
-        await self.activateProfile(provider: provider, profileRootPath: option.profileRootPath)
+        await self.activateProfile(provider: option.provider, profileRootPath: option.profileRootPath)
     }
 
     func approvePendingSwitch(for provider: QuotaProvider) async {
         guard let option = self.pendingSwitchConfirmations[provider] else {
             self.lastProfileActionSummary = "No pending switch confirmation for \(provider.displayName)."
+            return
+        }
+
+        guard let latestOption = self.globalRecommendationActivationOption,
+              latestOption.provider == option.provider,
+              latestOption.accountID == option.accountID,
+              latestOption.profileRootPath == option.profileRootPath
+        else {
+            self.pendingSwitchConfirmations.removeValue(forKey: provider)
+            self.lastProfileActionSummary = "That switch request is no longer current."
             return
         }
 
@@ -532,7 +621,7 @@ final class AppModel {
             kind: .confirmationApproved,
             provider: provider,
             title: "Approved switch",
-            detail: "Approved the pending \(provider.displayName) switch."
+            detail: "Approved the pending switch to \(option.accountLabel)."
         )
         await self.activateProfile(provider: provider, profileRootPath: option.profileRootPath)
     }
@@ -544,7 +633,7 @@ final class AppModel {
             state[provider] = candidate.identifier
             try? self.recommendationAlertStateStore.saveState(state)
         }
-        self.lastProfileActionSummary = "Dismissed the pending \(provider.displayName) switch request."
+        self.lastProfileActionSummary = "Dismissed the pending switch request for \(provider.displayName)."
         self.recordActivity(
             kind: .confirmationDismissed,
             provider: provider,
@@ -617,39 +706,30 @@ final class AppModel {
     private func syncRecommendationAlerts() async {
         guard self.recommendationAlertSettings.isEnabled else { return }
 
-        let candidates = RecommendationAlertPlanner.makeCandidates(recommendations: self.providerRecommendations)
-        let previousState = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
-        var nextState: [QuotaProvider: String] = [:]
-        var deliveredProviders: [String] = []
-
-        for candidate in candidates {
-            if previousState[candidate.provider] == candidate.identifier {
-                nextState[candidate.provider] = candidate.identifier
-                continue
-            }
-
-            let delivered = await self.recommendationAlertNotifier.deliver(candidate)
-            if delivered {
-                nextState[candidate.provider] = candidate.identifier
-                deliveredProviders.append(candidate.provider.displayName)
-            }
+        guard let candidate = RecommendationAlertPlanner.makeCandidate(recommendation: self.globalRecommendation) else {
+            try? self.recommendationAlertStateStore.saveState([:])
+            self.lastRecommendationAlertSummary = "No new recommendation alerts were sent."
+            return
         }
 
-        try? self.recommendationAlertStateStore.saveState(nextState)
-
-        if deliveredProviders.isEmpty {
+        let previousState = (try? self.recommendationAlertStateStore.loadState()) ?? [:]
+        if previousState[candidate.provider] == candidate.identifier {
             self.lastRecommendationAlertSummary = "No new recommendation alerts were sent."
+            return
+        }
+
+        let delivered = await self.recommendationAlertNotifier.deliver(candidate)
+        if delivered {
+            try? self.recommendationAlertStateStore.saveState([candidate.provider: candidate.identifier])
+            self.lastRecommendationAlertSummary = "Sent recommendation alert for \(candidate.provider.displayName)."
+            self.recordActivity(
+                kind: .alertSent,
+                provider: candidate.provider,
+                title: "Sent recommendation alert",
+                detail: "Sent a recommendation alert for \(candidate.provider.displayName)."
+            )
         } else {
-            self.lastRecommendationAlertSummary = "Sent recommendation alert for \(deliveredProviders.joined(separator: ", "))."
-            for providerName in deliveredProviders {
-                let provider = QuotaProvider.allCases.first(where: { $0.displayName == providerName })
-                self.recordActivity(
-                    kind: .alertSent,
-                    provider: provider,
-                    title: "Sent recommendation alert",
-                    detail: "Sent a recommendation alert for \(providerName)."
-                )
-            }
+            self.lastRecommendationAlertSummary = "No new recommendation alerts were sent."
         }
     }
 
@@ -679,20 +759,17 @@ final class AppModel {
     }
 
     private var recommendationCandidatesByProvider: [QuotaProvider: RecommendationAlertCandidate] {
-        Dictionary(
-            uniqueKeysWithValues: RecommendationAlertPlanner
-                .makeCandidates(recommendations: self.providerRecommendations)
-                .map { ($0.provider, $0) }
-        )
+        guard let candidate = RecommendationAlertPlanner.makeCandidate(recommendation: self.globalRecommendation) else {
+            return [:]
+        }
+        return [candidate.provider: candidate]
     }
 
     private var activationOptionsByProvider: [QuotaProvider: RecommendationActivationOption] {
-        Dictionary(
-            uniqueKeysWithValues: QuotaProvider.allCases.compactMap { provider in
-                guard let option = self.recommendationActivationOption(for: provider) else { return nil }
-                return (provider, option)
-            }
-        )
+        guard let option = self.globalRecommendationActivationOption else {
+            return [:]
+        }
+        return [option.provider: option]
     }
 
     private func planSwitchActions() -> SwitchActionPlan {
@@ -730,7 +807,8 @@ final class AppModel {
         kind: ActivityLogKind,
         provider: QuotaProvider?,
         title: String,
-        detail: String
+        detail: String,
+        restoreProvenance: ActivityLogRestoreProvenance? = nil
     ) {
         let entry = ActivityLogEntry(
             id: UUID(),
@@ -738,11 +816,46 @@ final class AppModel {
             kind: kind,
             provider: provider,
             title: title,
-            detail: detail
+            detail: detail,
+            restoreProvenance: restoreProvenance
         )
         self.activityLogEntries.insert(entry, at: 0)
         let entriesForPersistence = self.activityLogEntries.sorted { $0.timestamp < $1.timestamp }
         try? self.activityLogStore.saveEntries(entriesForPersistence)
+    }
+
+    private func makeRestoreProvenance(for profile: DiscoveredLocalProfile) -> ActivityLogRestoreProvenance {
+        let sourceProfile = self.profileReference(
+            provider: profile.provider,
+            profileRootPath: profile.profileRootURL.standardizedFileURL.path
+        )
+        let replacedProfile = self.resolvedCurrentProfilePaths[profile.provider].map {
+            self.profileReference(provider: profile.provider, profileRootPath: $0)
+        }
+
+        return ActivityLogRestoreProvenance(
+            sourceProfile: sourceProfile,
+            replacedProfile: replacedProfile
+        )
+    }
+
+    private func profileReference(
+        provider: QuotaProvider,
+        profileRootPath: String
+    ) -> ActivityLogProfileReference {
+        let standardizedPath = URL(fileURLWithPath: profileRootPath, isDirectory: true).standardizedFileURL.path
+        let label = self.storedProfileSources.first(where: {
+            $0.provider == provider && $0.profileRootURL.standardizedFileURL.path == standardizedPath
+        })?.label
+            ?? self.discoveredProfiles.first(where: {
+            $0.provider == provider && $0.profileRootURL.standardizedFileURL.path == standardizedPath
+        })?.label
+            ?? self.accounts.first(where: {
+                $0.provider == provider && $0.profileRootPath == standardizedPath
+            })?.label
+            ?? URL(fileURLWithPath: standardizedPath, isDirectory: true).lastPathComponent
+
+        return ActivityLogProfileReference(label: label, profileRootPath: standardizedPath)
     }
 
     private func reconcileAutomaticActivationRecoveryIssues(refreshedAccounts: [QuotaAccount]) {
@@ -775,5 +888,10 @@ final class AppModel {
         } else {
             self.automaticActivationRecoveryIssues.removeValue(forKey: option.provider)
         }
+    }
+
+    private func refreshLaunchAtLoginState() {
+        self.launchAtLoginStatus = self.launchAtLoginController.status
+        self.isLaunchAtLoginEnabled = self.launchAtLoginStatus != .disabled
     }
 }

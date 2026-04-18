@@ -72,7 +72,6 @@ struct QuotaPilotProvider: TimelineProvider {
 
 struct QuotaPilotWidgetView: View {
     let entry: QuotaPilotEntry
-    @Environment(\.widgetFamily) private var family
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -80,7 +79,59 @@ struct QuotaPilotWidgetView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            if self.entry.projection.providerPanels.isEmpty {
+            if let panel = self.entry.projection.globalRecommendationPanel {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(panel.statusText)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        if panel.showsWarning {
+                            Text("Low")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.orange)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            WidgetProviderIconView(provider: panel.currentProvider)
+                            Text("Current")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Text(panel.currentLabel)
+                            .font(.headline)
+                            .lineLimit(1)
+
+                        Text("\(panel.currentRemainingPercent)% remaining")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            WidgetProviderIconView(provider: panel.recommendedProvider)
+                            Text("Best Next")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Text(panel.recommendedLabel)
+                            .font(.headline)
+                            .lineLimit(1)
+
+                        Text("\(panel.recommendedRemainingPercent)% available")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tint)
+                    }
+                }
+            } else {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("No live profiles yet")
                         .font(.headline)
@@ -89,41 +140,6 @@ struct QuotaPilotWidgetView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-            } else {
-                ForEach(self.entry.projection.providerPanels.prefix(self.family == .systemSmall ? 1 : 2), id: \.provider) { panel in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            WidgetProviderIconView(provider: panel.provider)
-                            Text(panel.provider.displayName)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-
-                            Spacer()
-
-                            if panel.showsWarning {
-                                Text("Low")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.orange)
-                            }
-                        }
-
-                        Text("Current: \(panel.currentLabel)")
-                            .font(.caption)
-                            .lineLimit(1)
-
-                        Text("Best: \(panel.recommendedLabel)")
-                            .font(.headline)
-                            .lineLimit(1)
-
-                        Text("\(panel.currentRemainingPercent)% now • \(panel.recommendedRemainingPercent)% best")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tint)
-
-                        Text(panel.statusText)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
                 }
             }
 
@@ -146,7 +162,7 @@ struct QuotaPilotWidget: Widget {
             QuotaPilotWidgetView(entry: entry)
         }
         .configurationDisplayName("QuotaPilot")
-        .description("Shows the currently recommended account.")
+        .description("Shows the current active account and the best next option.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

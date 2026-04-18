@@ -2,18 +2,26 @@ import SwiftUI
 import QuotaPilotCore
 
 struct RecommendationCard: View {
-    let recommendation: RecommendationEngine.ProviderRecommendation
+    let recommendation: RecommendationEngine.GlobalRecommendation
     let activationOption: RecommendationActivationOption?
     let guidedHandoffPlan: GuidedDesktopHandoffPlan?
     let isActivatingProfile: Bool
     let onActivateRecommended: (() -> Void)?
 
     private var title: String {
-        "Best \(self.recommendation.provider.displayName) Account"
+        "Best Next Account"
     }
 
     private var statusText: String {
         self.recommendation.decision.action == .recommendSwitch ? "Switch suggested" : "Current stays best"
+    }
+
+    private var currentAccount: QuotaAccount? {
+        self.recommendation.currentAccount
+    }
+
+    private var recommendedAccount: QuotaAccount? {
+        self.recommendation.recommendedAccount
     }
 
     var body: some View {
@@ -24,13 +32,13 @@ struct RecommendationCard: View {
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(self.recommendation.recommendedAccount?.label ?? "No recommendation")
+                    Text(self.recommendedAccount?.label ?? "No recommendation")
                         .font(.title3.weight(.semibold))
 
-                    if let account = self.recommendation.recommendedAccount {
+                    if let account = self.recommendedAccount {
                         HStack(spacing: 6) {
                             ProviderIconView(provider: account.provider, size: 14)
-                            Text(account.provider.displayName)
+                            Text("Best next in \(account.provider.displayName)")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -38,7 +46,7 @@ struct RecommendationCard: View {
 
                 Spacer()
 
-                Text("\(self.recommendation.recommendedAccount?.primaryRemainingPercent ?? 0)%")
+                Text("\(self.recommendedAccount?.primaryRemainingPercent ?? 0)%")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundStyle(.tint)
             }
@@ -49,6 +57,22 @@ struct RecommendationCard: View {
                 Text(self.recommendation.decision.explanation)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            }
+
+            if let currentAccount {
+                Divider()
+
+                HStack(spacing: 10) {
+                    ProviderIconView(provider: currentAccount.provider, size: 14)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Current active")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text("\(currentAccount.label) • \(currentAccount.primaryRemainingPercent)% remaining")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             if let activationOption {

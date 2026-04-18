@@ -42,6 +42,39 @@ final class ActivityLogStoreTests: XCTestCase {
         XCTAssertEqual(try store.loadEntries(), expected)
     }
 
+    func testPersistsRestoreProvenanceRoundTrip() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileURL = root.appendingPathComponent("activity-log.json")
+        let store = ActivityLogStore(fileURL: fileURL)
+
+        let expected = [
+            ActivityLogEntry(
+                id: UUID(uuidString: "00000000-0000-0000-0000-0000000000AA") ?? UUID(),
+                timestamp: Date(timeIntervalSince1970: 300),
+                kind: .activationSucceeded,
+                provider: .codex,
+                title: "Restored backup",
+                detail: "Restored Codex Ambient Backup for Codex.",
+                restoreProvenance: ActivityLogRestoreProvenance(
+                    sourceProfile: .init(
+                        label: "Codex Ambient Backup",
+                        profileRootPath: "/tmp/backups/codex/ambient-backup"
+                    ),
+                    replacedProfile: .init(
+                        label: "Codex Work",
+                        profileRootPath: "/tmp/codex-work"
+                    )
+                )
+            ),
+        ]
+
+        try store.saveEntries(expected)
+
+        XCTAssertEqual(try store.loadEntries(), expected)
+    }
+
     func testTrimsToMostRecentEntries() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -74,7 +107,17 @@ final class ActivityLogStoreTests: XCTestCase {
             kind: .activationSucceeded,
             provider: .codex,
             title: "Restored backup",
-            detail: "Restored Codex Ambient Backup for Codex."
+            detail: "Restored Codex Ambient Backup for Codex.",
+            restoreProvenance: ActivityLogRestoreProvenance(
+                sourceProfile: .init(
+                    label: "Codex Ambient Backup",
+                    profileRootPath: "/tmp/backups/codex/ambient-backup"
+                ),
+                replacedProfile: .init(
+                    label: "Codex Work",
+                    profileRootPath: "/tmp/codex-work"
+                )
+            )
         )
         let activateEntry = ActivityLogEntry(
             id: UUID(),
@@ -87,5 +130,18 @@ final class ActivityLogStoreTests: XCTestCase {
 
         XCTAssertTrue(restoreEntry.isBackupRestore)
         XCTAssertFalse(activateEntry.isBackupRestore)
+    }
+
+    func testFlagsLegacyBackupRestoreEntriesWithoutStructuredProvenance() {
+        let legacyRestoreEntry = ActivityLogEntry(
+            id: UUID(),
+            timestamp: .now,
+            kind: .activationSucceeded,
+            provider: .codex,
+            title: "Restored backup",
+            detail: "Restored Codex Ambient Backup for Codex."
+        )
+
+        XCTAssertTrue(legacyRestoreEntry.isBackupRestore)
     }
 }

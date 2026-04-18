@@ -20,6 +20,25 @@ public struct RecommendationAlertCandidate: Equatable, Sendable {
 }
 
 public enum RecommendationAlertPlanner {
+    public static func makeCandidate(
+        recommendation: RecommendationEngine.GlobalRecommendation?
+    ) -> RecommendationAlertCandidate? {
+        guard let recommendation,
+              recommendation.decision.action == .recommendSwitch,
+              let recommendedAccount = recommendation.recommendedAccount
+        else {
+            return nil
+        }
+
+        let currentLabel = recommendation.currentAccount?.label ?? "the current account"
+        return RecommendationAlertCandidate(
+            provider: recommendedAccount.provider,
+            identifier: "\(recommendation.decision.currentAccountID?.uuidString ?? "none"):\(recommendedAccount.id.uuidString)",
+            title: "Switch to \(recommendedAccount.label)",
+            body: "\(recommendedAccount.label) is currently the best next account instead of \(currentLabel)."
+        )
+    }
+
     public static func makeCandidates(
         recommendations: [RecommendationEngine.ProviderRecommendation]
     ) -> [RecommendationAlertCandidate] {

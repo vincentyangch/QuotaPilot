@@ -37,27 +37,64 @@ public struct RecommendationActivationOption: Equatable, Sendable {
 
 public enum RecommendationActivationPlanner {
     public static func makeOption(
+        recommendation: RecommendationEngine.GlobalRecommendation?,
+        discoveredProfiles: [DiscoveredLocalProfile],
+        currentProfileRootPaths: [QuotaProvider: String]
+    ) -> RecommendationActivationOption? {
+        guard let recommendation,
+              recommendation.decision.action == .recommendSwitch,
+              let recommendedAccount = recommendation.recommendedAccount
+        else {
+            return nil
+        }
+
+        return self.makeOption(
+            recommendedAccount: recommendedAccount,
+            provider: recommendedAccount.provider,
+            discoveredProfiles: discoveredProfiles,
+            currentProfileRootPaths: currentProfileRootPaths
+        )
+    }
+
+    public static func makeOption(
         recommendation: RecommendationEngine.ProviderRecommendation,
         discoveredProfiles: [DiscoveredLocalProfile],
         currentProfileRootPaths: [QuotaProvider: String]
     ) -> RecommendationActivationOption? {
         guard recommendation.decision.action == .recommendSwitch,
-              let recommendedAccount = recommendation.recommendedAccount,
-              let profileRootPath = recommendedAccount.profileRootPath
+              let recommendedAccount = recommendation.recommendedAccount
         else {
+            return nil
+        }
+
+        return self.makeOption(
+            recommendedAccount: recommendedAccount,
+            provider: recommendation.provider,
+            discoveredProfiles: discoveredProfiles,
+            currentProfileRootPaths: currentProfileRootPaths
+        )
+    }
+
+    private static func makeOption(
+        recommendedAccount: QuotaAccount,
+        provider: QuotaProvider,
+        discoveredProfiles: [DiscoveredLocalProfile],
+        currentProfileRootPaths: [QuotaProvider: String]
+    ) -> RecommendationActivationOption? {
+        guard let profileRootPath = recommendedAccount.profileRootPath else {
             return nil
         }
 
         let standardizedProfilePath = URL(fileURLWithPath: profileRootPath, isDirectory: true)
             .standardizedFileURL
             .path
-        let standardizedCurrentPath = currentProfileRootPaths[recommendation.provider].map {
+        let standardizedCurrentPath = currentProfileRootPaths[provider].map {
             URL(fileURLWithPath: $0, isDirectory: true).standardizedFileURL.path
         }
 
         if standardizedCurrentPath == standardizedProfilePath || recommendedAccount.isCurrent {
             return RecommendationActivationOption(
-                provider: recommendation.provider,
+                provider: provider,
                 accountID: recommendedAccount.id,
                 accountLabel: recommendedAccount.label,
                 profileRootPath: standardizedProfilePath,
@@ -67,13 +104,13 @@ public enum RecommendationActivationPlanner {
         }
 
         let isDiscovered = discoveredProfiles.contains {
-            $0.provider == recommendation.provider
+            $0.provider == provider
                 && $0.profileRootURL.standardizedFileURL.path == standardizedProfilePath
         }
 
         if !isDiscovered {
             return RecommendationActivationOption(
-                provider: recommendation.provider,
+                provider: provider,
                 accountID: recommendedAccount.id,
                 accountLabel: recommendedAccount.label,
                 profileRootPath: standardizedProfilePath,
@@ -83,7 +120,7 @@ public enum RecommendationActivationPlanner {
         }
 
         return RecommendationActivationOption(
-            provider: recommendation.provider,
+            provider: provider,
             accountID: recommendedAccount.id,
             accountLabel: recommendedAccount.label,
             profileRootPath: standardizedProfilePath,

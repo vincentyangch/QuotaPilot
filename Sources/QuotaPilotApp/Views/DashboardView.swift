@@ -62,6 +62,26 @@ struct LatestBackupRestoreView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
+                if let restoreProvenance = self.entry.restoreProvenance {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Backup used: \(restoreProvenance.sourceProfile.label)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(restoreProvenance.sourceProfile.profileRootPath)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+
+                        if let replacedProfile = restoreProvenance.replacedProfile {
+                            Text("Replaced: \(replacedProfile.label)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(replacedProfile.profileRootPath)
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 Text(Self.timestampFormatter.string(from: self.entry.timestamp))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -86,7 +106,7 @@ struct DashboardView: View {
     @State private var selection: QuotaAccount.ID?
 
     private var selectedAccount: QuotaAccount? {
-        let selectedID = self.selection ?? self.model.providerRecommendations.first?.recommendedAccount?.id
+        let selectedID = self.selection ?? self.model.globalRecommendation?.recommendedAccount?.id
         return self.model.accounts.first(where: { $0.id == selectedID })
     }
 
@@ -105,7 +125,7 @@ struct DashboardView: View {
                                 AccountRowView(
                                     account: scoredAccount.account,
                                     score: scoredAccount.score,
-                                    isRecommended: scoredAccount.account.id == recommendation.recommendedAccount?.id,
+                                    isRecommended: scoredAccount.account.id == self.model.globalRecommendation?.recommendedAccount?.id,
                                     showsScore: true
                                 )
                                 .tag(scoredAccount.account.id)
@@ -152,19 +172,15 @@ struct DashboardView: View {
                         }
                     }
 
-                    if !self.model.providerRecommendations.isEmpty {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                            ForEach(self.model.providerRecommendations) { recommendation in
-                                RecommendationCard(
-                                    recommendation: recommendation,
-                                    activationOption: self.model.recommendationActivationOption(for: recommendation.provider),
-                                    guidedHandoffPlan: self.model.guidedDesktopHandoffPlan(for: recommendation.provider),
-                                    isActivatingProfile: self.model.isActivatingProfile
-                                ) {
-                                    Task {
-                                        await self.model.activateRecommendedProfile(for: recommendation.provider)
-                                    }
-                                }
+                    if let recommendation = self.model.globalRecommendation {
+                        RecommendationCard(
+                            recommendation: recommendation,
+                            activationOption: self.model.globalRecommendationActivationOption,
+                            guidedHandoffPlan: self.model.globalGuidedDesktopHandoffPlan,
+                            isActivatingProfile: self.model.isActivatingProfile
+                        ) {
+                            Task {
+                                await self.model.activateRecommendedProfile()
                             }
                         }
                     }

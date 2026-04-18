@@ -2,7 +2,7 @@ import XCTest
 @testable import QuotaPilotCore
 
 final class QuotaPilotWidgetProjectionTests: XCTestCase {
-    func testBuildsProviderPanelsWithCurrentAndRecommendedAccounts() throws {
+    func testBuildsGlobalRecommendationPanelAcrossProviders() throws {
         let now = Date(timeIntervalSince1970: 2_000)
         let snapshot = QuotaPilotWidgetSnapshot(
             generatedAt: Date(timeIntervalSince1970: 1_700),
@@ -19,23 +19,40 @@ final class QuotaPilotWidgetProjectionTests: XCTestCase {
                         UsageWindow(
                             id: "session",
                             title: "Session",
-                            remainingPercent: 10,
+                            remainingPercent: 18,
                             resetsAt: now.addingTimeInterval(3600)
                         )
                     ]
                 ),
                 QuotaAccount(
-                    id: UUID(uuidString: "00000000-0000-0000-0000-000000000002") ?? UUID(),
-                    provider: .codex,
-                    label: "Codex Better",
-                    priority: 90,
-                    isCurrent: false,
-                    profileRootPath: "/tmp/codex-better",
+                    id: UUID(uuidString: "00000000-0000-0000-0000-000000000010") ?? UUID(),
+                    provider: .claude,
+                    label: "Claude Active",
+                    priority: 10,
+                    isCurrent: true,
+                    profileRootPath: "/tmp/claude-current",
                     sourceDescription: "Test",
                     windows: [
                         UsageWindow(
-                            id: "session",
-                            title: "Session",
+                            id: "weekly",
+                            title: "Weekly",
+                            remainingPercent: 30,
+                            resetsAt: now.addingTimeInterval(7200)
+                        )
+                    ]
+                ),
+                QuotaAccount(
+                    id: UUID(uuidString: "00000000-0000-0000-0000-000000000002") ?? UUID(),
+                    provider: .claude,
+                    label: "Claude Better",
+                    priority: 90,
+                    isCurrent: false,
+                    profileRootPath: "/tmp/claude-better",
+                    sourceDescription: "Test",
+                    windows: [
+                        UsageWindow(
+                            id: "weekly",
+                            title: "Weekly",
                             remainingPercent: 80,
                             resetsAt: now.addingTimeInterval(1800)
                         )
@@ -47,11 +64,13 @@ final class QuotaPilotWidgetProjectionTests: XCTestCase {
         )
 
         let projection = QuotaPilotWidgetProjection.make(snapshot: snapshot, now: now)
-        let panel = try XCTUnwrap(projection.providerPanels.first(where: { $0.provider == .codex }))
+        let panel = try XCTUnwrap(projection.globalRecommendationPanel)
 
         XCTAssertEqual(panel.currentLabel, "Codex Current")
-        XCTAssertEqual(panel.currentRemainingPercent, 10)
-        XCTAssertEqual(panel.recommendedLabel, "Codex Better")
+        XCTAssertEqual(panel.currentProvider, .codex)
+        XCTAssertEqual(panel.currentRemainingPercent, 18)
+        XCTAssertEqual(panel.recommendedLabel, "Claude Better")
+        XCTAssertEqual(panel.recommendedProvider, .claude)
         XCTAssertEqual(panel.recommendedRemainingPercent, 80)
         XCTAssertTrue(panel.showsWarning)
         XCTAssertEqual(panel.statusText, "Switch suggested")
@@ -86,10 +105,12 @@ final class QuotaPilotWidgetProjectionTests: XCTestCase {
         )
 
         let projection = QuotaPilotWidgetProjection.make(snapshot: snapshot, now: now)
-        let panel = try XCTUnwrap(projection.providerPanels.first(where: { $0.provider == .claude }))
+        let panel = try XCTUnwrap(projection.globalRecommendationPanel)
 
         XCTAssertEqual(panel.currentLabel, "Claude Team")
+        XCTAssertEqual(panel.currentProvider, .claude)
         XCTAssertEqual(panel.recommendedLabel, "Claude Team")
+        XCTAssertEqual(panel.recommendedProvider, .claude)
         XCTAssertFalse(panel.showsWarning)
         XCTAssertEqual(panel.statusText, "Current stays best")
         XCTAssertEqual(projection.lastRefreshText, "Updated 1 min ago")
@@ -106,7 +127,7 @@ final class QuotaPilotWidgetProjectionTests: XCTestCase {
 
         let projection = QuotaPilotWidgetProjection.make(snapshot: snapshot, now: now)
 
-        XCTAssertTrue(projection.providerPanels.isEmpty)
+        XCTAssertNil(projection.globalRecommendationPanel)
         XCTAssertEqual(
             projection.emptyStateText,
             "No local profiles found yet. Add a Codex or Claude profile in Settings."

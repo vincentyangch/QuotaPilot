@@ -2,7 +2,7 @@ import XCTest
 @testable import QuotaPilotCore
 
 final class RecommendationAlertPlannerTests: XCTestCase {
-    func testBuildsCandidateForRecommendSwitchDecision() {
+    func testBuildsCandidateForGlobalRecommendSwitchDecision() {
         let current = QuotaAccount.codex(
             label: "current@example.com",
             remainingPercent: 8,
@@ -18,8 +18,7 @@ final class RecommendationAlertPlannerTests: XCTestCase {
             isCurrent: false
         )
 
-        let recommendation = RecommendationEngine.ProviderRecommendation(
-            provider: .codex,
+        let recommendation = RecommendationEngine.GlobalRecommendation(
             rankedAccounts: [
                 .init(account: recommended, score: 300),
                 .init(account: current, score: 120),
@@ -34,17 +33,17 @@ final class RecommendationAlertPlannerTests: XCTestCase {
             )
         )
 
-        let candidate = RecommendationAlertPlanner.makeCandidates(recommendations: [recommendation]).first
+        let candidate = RecommendationAlertPlanner.makeCandidate(recommendation: recommendation)
 
         XCTAssertEqual(candidate?.provider, .codex)
-        XCTAssertEqual(candidate?.title, "Switch Codex account")
+        XCTAssertEqual(candidate?.title, "Switch to better@example.com")
         XCTAssertEqual(
             candidate?.body,
-            "better@example.com is currently the best Codex account instead of current@example.com."
+            "better@example.com is currently the best next account instead of current@example.com."
         )
         XCTAssertEqual(
             candidate?.identifier,
-            "codex:\(current.id.uuidString):\(recommended.id.uuidString)"
+            "\(current.id.uuidString):\(recommended.id.uuidString)"
         )
     }
 
@@ -57,8 +56,7 @@ final class RecommendationAlertPlannerTests: XCTestCase {
             isCurrent: true
         )
 
-        let recommendation = RecommendationEngine.ProviderRecommendation(
-            provider: .claude,
+        let recommendation = RecommendationEngine.GlobalRecommendation(
             rankedAccounts: [.init(account: current, score: 180)],
             decision: RecommendationDecision(
                 currentAccountID: current.id,
@@ -70,6 +68,6 @@ final class RecommendationAlertPlannerTests: XCTestCase {
             )
         )
 
-        XCTAssertTrue(RecommendationAlertPlanner.makeCandidates(recommendations: [recommendation]).isEmpty)
+        XCTAssertNil(RecommendationAlertPlanner.makeCandidate(recommendation: recommendation))
     }
 }

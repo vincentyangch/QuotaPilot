@@ -58,6 +58,7 @@ targets:
     sources:
       - path: Tests/QuotaPilotTests
     dependencies:
+      - target: QuotaPilot
       - target: QuotaPilotCore
     settings:
       base:

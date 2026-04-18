@@ -30,6 +30,26 @@ public struct GuidedDesktopHandoffPlan: Equatable, Sendable {
 
 public enum GuidedDesktopHandoffPlanner {
     public static func makePlan(
+        recommendation: RecommendationEngine.GlobalRecommendation?,
+        activationOption: RecommendationActivationOption?,
+        switchActionMode: SwitchActionMode
+    ) -> GuidedDesktopHandoffPlan? {
+        guard let recommendation,
+              recommendation.decision.action == .recommendSwitch,
+              let recommendedAccount = recommendation.recommendedAccount
+        else {
+            return nil
+        }
+
+        return self.makePlan(
+            recommendedAccount: recommendedAccount,
+            provider: recommendedAccount.provider,
+            activationOption: activationOption,
+            switchActionMode: switchActionMode
+        )
+    }
+
+    public static func makePlan(
         recommendation: RecommendationEngine.ProviderRecommendation?,
         activationOption: RecommendationActivationOption?,
         switchActionMode: SwitchActionMode
@@ -41,6 +61,20 @@ public enum GuidedDesktopHandoffPlanner {
             return nil
         }
 
+        return self.makePlan(
+            recommendedAccount: recommendedAccount,
+            provider: recommendation.provider,
+            activationOption: activationOption,
+            switchActionMode: switchActionMode
+        )
+    }
+
+    private static func makePlan(
+        recommendedAccount: QuotaAccount,
+        provider: QuotaProvider,
+        activationOption: RecommendationActivationOption?,
+        switchActionMode: SwitchActionMode
+    ) -> GuidedDesktopHandoffPlan? {
         if let activationOption, activationOption.status == .activatable {
             return nil
         }
@@ -57,7 +91,7 @@ public enum GuidedDesktopHandoffPlanner {
         case .alreadyActive:
             return nil
         case .unavailableOnThisMac:
-            summary = "\(recommendedAccount.label) looks best for \(recommendation.provider.displayName), but QuotaPilot cannot switch to it automatically until that profile is available on this Mac."
+            summary = "\(recommendedAccount.label) is the best next \(provider.displayName) account, but QuotaPilot cannot switch to it automatically until that profile is available on this Mac."
             var guidedSteps = [
                 "Open Settings and add the recommended profile root under Additional Profile Sources.",
             ]
@@ -70,7 +104,7 @@ public enum GuidedDesktopHandoffPlanner {
         case .activatable:
             return nil
         case nil:
-            summary = "\(recommendedAccount.label) looks best for \(recommendation.provider.displayName), but QuotaPilot does not have enough local profile information to switch automatically."
+            summary = "\(recommendedAccount.label) is the best next \(provider.displayName) account, but QuotaPilot does not have enough local profile information to switch automatically."
             steps = [
                 "Make the recommended account current in the relevant desktop app or CLI.",
                 "Refresh live usage so QuotaPilot can verify the active account.",
@@ -79,7 +113,7 @@ public enum GuidedDesktopHandoffPlanner {
         }
 
         return GuidedDesktopHandoffPlan(
-            provider: recommendation.provider,
+            provider: provider,
             accountLabel: recommendedAccount.label,
             summary: summary,
             targetProfileRootPath: targetProfileRootPath,

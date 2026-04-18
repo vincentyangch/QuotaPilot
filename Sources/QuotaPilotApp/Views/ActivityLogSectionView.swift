@@ -45,6 +45,25 @@ struct ActivityLogSectionView: View {
                             Text(entry.detail)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            if let restoreProvenance = entry.restoreProvenance {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Backup used: \(restoreProvenance.sourceProfile.label)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(restoreProvenance.sourceProfile.profileRootPath)
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(.secondary)
+
+                                    if let replacedProfile = restoreProvenance.replacedProfile {
+                                        Text("Replaced: \(replacedProfile.label)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        Text(replacedProfile.profileRootPath)
+                                            .font(.caption2.monospaced())
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
                             Text(Self.timestampFormatter.string(from: entry.timestamp))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)

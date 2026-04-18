@@ -15,7 +15,6 @@ final class QuotaPilotAppDelegate: NSObject, NSApplicationDelegate, UNUserNotifi
     func applicationDidFinishLaunching(_ notification: Notification) {
         self.didFinishLaunching = true
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
         UNUserNotificationCenter.current().delegate = self
         self.onDidFinishLaunching?()
     }

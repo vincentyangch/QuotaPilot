@@ -109,7 +109,7 @@ struct RulesSettingsView: View {
     }
 
     private var recentRecoveryEntries: [ActivityLogEntry] {
-        Array(self.model.activityLogEntries.filter(\.isBackupRestore).prefix(3))
+        Array(self.model.activityLogEntries.filter(\.isBackupRestore).prefix(8))
     }
 
     private var needsAttentionCount: Int {
@@ -123,7 +123,7 @@ struct RulesSettingsView: View {
     }
 
     private var recentRecoveryCount: Int {
-        self.recentRecoveryEntries.count
+        self.model.activityLogEntries.filter(\.isBackupRestore).count
     }
 
     private var recoveryCenterIsEmpty: Bool {
@@ -175,6 +175,17 @@ struct RulesSettingsView: View {
                 Text("No recovery actions are needed right now.")
                     .foregroundStyle(.secondary)
             } else {
+                HStack(spacing: 12) {
+                    Button("Expand All") {
+                        self.expandAllRecoveryGroups()
+                    }
+
+                    Button("Collapse All") {
+                        self.collapseAllRecoveryGroups()
+                    }
+                }
+                .padding(.bottom, 4)
+
                 if !self.providersNeedingAttention.isEmpty || !self.trackedProfilesNeedingAttention.isEmpty || !self.automaticRecoveryIssues.isEmpty {
                     DisclosureGroup(
                         isExpanded: self.recoveryBinding(for: .needsAttention)
@@ -309,6 +320,30 @@ struct RulesSettingsView: View {
                 recentRecoveryExpanded: self.expandedRecoveryGroups.contains(.recentRecovery)
             )
         )
+    }
+
+    private func expandAllRecoveryGroups() {
+        self.expandedRecoveryGroups = self.availableRecoveryGroups()
+        self.persistRecoveryGroups()
+    }
+
+    private func collapseAllRecoveryGroups() {
+        self.expandedRecoveryGroups = []
+        self.persistRecoveryGroups()
+    }
+
+    private func availableRecoveryGroups() -> Set<RecoveryGroup> {
+        var groups: Set<RecoveryGroup> = []
+        if self.needsAttentionCount > 0 {
+            groups.insert(.needsAttention)
+        }
+        if self.restoreOptionsCount > 0 {
+            groups.insert(.restoreOptions)
+        }
+        if self.recentRecoveryCount > 0 {
+            groups.insert(.recentRecovery)
+        }
+        return groups
     }
 
     private func groups(from state: RecoveryCenterExpansionState) -> Set<RecoveryGroup> {
@@ -531,6 +566,25 @@ struct RulesSettingsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(entry.detail)
                 .foregroundStyle(.secondary)
+            if let restoreProvenance = entry.restoreProvenance {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Backup used: \(restoreProvenance.sourceProfile.label)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(restoreProvenance.sourceProfile.profileRootPath)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+
+                    if let replacedProfile = restoreProvenance.replacedProfile {
+                        Text("Replaced: \(replacedProfile.label)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(replacedProfile.profileRootPath)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
             Text(Self.timestampFormatter.string(from: entry.timestamp))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -744,7 +798,7 @@ struct RulesSettingsView: View {
             }
 
             Section("Scope") {
-                Text("These rules currently apply separately within Codex and Claude, so each provider keeps its own best active account.")
+                Text("These rules now produce one global best-next-account recommendation across Codex and Claude while still preserving provider-specific rankings and health details.")
                     .foregroundStyle(.secondary)
             }
 
@@ -829,6 +883,32 @@ struct RulesSettingsView: View {
 
                 Text("While QuotaPilot is running, background refresh keeps the widget, recommendations, and alerts up to date without opening the dashboard.")
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Launch & Startup") {
+                Toggle(
+                    "Launch QuotaPilot at login",
+                    isOn: Binding(
+                        get: { self.model.isLaunchAtLoginEnabled },
+                        set: { self.model.updateLaunchAtLoginEnabled($0) }
+                    )
+                )
+
+                Toggle(
+                    "Open dashboard when QuotaPilot launches",
+                    isOn: Binding(
+                        get: { self.model.startupBehavior.opensDashboardOnLaunch },
+                        set: { self.model.updateStartupBehavior(StartupBehavior(opensDashboardOnLaunch: $0)) }
+                    )
+                )
+
+                Text("Use a menu bar-only launch for background monitoring, or keep the dashboard presented when you start the app directly.")
+                    .foregroundStyle(.secondary)
+
+                if let launchSettingsSummary = self.model.launchSettingsSummary {
+                    Text(launchSettingsSummary)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             self.discoveredProfilesSection
